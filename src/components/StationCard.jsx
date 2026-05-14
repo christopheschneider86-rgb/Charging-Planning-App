@@ -37,9 +37,11 @@ const StationCard = ({ station, isFavorite, isProviderFavorite, toggleFavorite, 
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
             <MapPin size={14} /> {station.distance} {station.distanceUnit}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            <Euro size={14} /> {station.price}
-          </span>
+          {station.price !== 'k.A.' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Euro size={14} /> {station.price}
+            </span>
+          )}
         </div>
         <button 
           className="btn-icon" 

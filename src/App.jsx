@@ -67,9 +67,10 @@ function App() {
     if (activeTab === 'route') {
       return (
         <RoutePlanner 
-          stations={MOCK_STATIONS} 
+          apiKey={ocmApiKey}
           favorites={favorites} 
           toggleFavorite={toggleStationFavorite} 
+          onOpenSettings={() => { setApiKeyInput(ocmApiKey); setShowSettings(true); }}
         />
       );
     }

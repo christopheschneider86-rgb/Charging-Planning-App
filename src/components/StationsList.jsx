@@ -1,14 +1,16 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { SlidersHorizontal, Navigation, Search, MapPin, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { SlidersHorizontal, Navigation, Search, MapPin, AlertCircle, List, Map } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
+import MapView from './MapView';
 import { geocodeAddress, fetchStations } from '../services/api';
 
 const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorite, onOpenSettings }) => {
-  const [sortBy, setSortBy] = useState('distance'); // distance, price, power
+  const [sortBy, setSortBy] = useState('distance'); 
   const [filterProvider, setFilterProvider] = useState('All');
   const [filterFavorites, setFilterFavorites] = useState(false);
   const [filterAvailable, setFilterAvailable] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
   
   const [selectedStation, setSelectedStation] = useState(null);
   
@@ -18,8 +20,8 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchedLocationName, setSearchedLocationName] = useState(null);
+  const [mapCenter, setMapCenter] = useState(null);
 
-  // Derive unique providers from currently loaded stations
   const providers = useMemo(() => {
     const pSet = new Set(liveStations.map(s => s.provider));
     return Array.from(pSet).sort();
@@ -34,9 +36,10 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchStations(lat, lng, apiKey, 15); // 15km radius
+      const data = await fetchStations(lat, lng, apiKey, 15);
       setLiveStations(data);
       setSearchedLocationName(locationName || `${lat.toFixed(3)}, ${lng.toFixed(3)}`);
+      setMapCenter([lat, lng]);
     } catch (err) {
       if (err.message === 'NO_API_KEY' || err.message === 'INVALID_API_KEY') {
         setError('INVALID_API_KEY');
@@ -50,10 +53,8 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
 
   const handleSearchAddress = async () => {
     if (!locationInput.trim()) return;
-    
     setIsLoading(true);
     setError(null);
-    
     const coords = await geocodeAddress(locationInput);
     if (coords) {
       await loadStationsForLocation(coords.lat, coords.lng, coords.name);
@@ -68,16 +69,13 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
       setError('GEO_NOT_SUPPORTED');
       return;
     }
-
     setIsLoading(true);
     setError(null);
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         loadStationsForLocation(position.coords.latitude, position.coords.longitude, "Mein Standort");
       },
       (err) => {
-        console.error("Geolocation Error:", err);
         setError('GEO_DENIED');
         setIsLoading(false);
       }
@@ -87,26 +85,17 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
   const processedStations = useMemo(() => {
     let result = [...liveStations];
 
-    if (filterProvider !== 'All') {
-      result = result.filter(s => s.provider === filterProvider);
-    }
-    if (filterFavorites) {
-      result = result.filter(s => favorites.stations.includes(s.id) || favorites.providers.includes(s.provider));
-    }
-    if (filterAvailable) {
-      result = result.filter(s => s.availableSpots > 0);
-    }
+    if (filterProvider !== 'All') result = result.filter(s => s.provider === filterProvider);
+    if (filterFavorites) result = result.filter(s => favorites.stations.includes(s.id) || favorites.providers.includes(s.provider));
+    if (filterAvailable) result = result.filter(s => s.availableSpots > 0);
 
     result.sort((a, b) => {
       const aFav = favorites.stations.includes(a.id) || favorites.providers.includes(a.provider) ? 1 : 0;
       const bFav = favorites.stations.includes(b.id) || favorites.providers.includes(b.provider) ? 1 : 0;
-      
       if (aFav !== bFav) return bFav - aFav;
-
       if (sortBy === 'distance') return parseFloat(a.distance) - parseFloat(b.distance);
-      if (sortBy === 'price') return a.price === 'k.A.' ? 1 : -1; // Push unknown prices to bottom, simplistic sort
+      if (sortBy === 'price') return a.price === 'k.A.' ? 1 : -1;
       if (sortBy === 'power') return parseInt(b.power) - parseInt(a.power);
-      
       return 0;
     });
 
@@ -116,42 +105,26 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
   return (
     <div style={{ padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
       
-      {/* Search & Controls */}
       <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        
-        {/* Address Search */}
         <div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
             <Search size={18} color="var(--accent-primary)" />
             <span style={{ fontWeight: 600 }}>Standort oder Adresse</span>
           </div>
-          
           <div className="input-group" style={{ margin: 0 }}>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input 
                 type="text" 
                 className="input-field" 
-                placeholder="Z.B. aktueller Standort oder 'München'" 
+                placeholder="Z.B. 'München'" 
                 value={locationInput}
                 onChange={(e) => setLocationInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearchAddress()}
               />
-              <button 
-                className="btn-secondary" 
-                style={{ padding: '0.75rem' }} 
-                title="Adresse suchen"
-                onClick={handleSearchAddress}
-                disabled={isLoading}
-              >
+              <button className="btn-secondary" style={{ padding: '0.75rem' }} onClick={handleSearchAddress} disabled={isLoading}>
                 <Search size={18} />
               </button>
-              <button 
-                className="btn-primary" 
-                style={{ padding: '0.75rem' }} 
-                title="Meinen Standort verwenden"
-                onClick={handleUseCurrentLocation}
-                disabled={isLoading}
-              >
+              <button className="btn-primary" style={{ padding: '0.75rem' }} onClick={handleUseCurrentLocation} disabled={isLoading}>
                 <Navigation size={18} />
               </button>
             </div>
@@ -160,29 +133,45 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
 
         <div style={{ height: '1px', background: 'var(--border-color)', margin: '0.25rem 0' }}></div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <SlidersHorizontal size={18} color="var(--accent-primary)" />
-          <span style={{ fontWeight: 600 }}>Filter & Sortierung</span>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <SlidersHorizontal size={18} color="var(--accent-primary)" />
+            <span style={{ fontWeight: 600 }}>Filter & Ansicht</span>
+          </div>
+          
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
+            <button 
+              onClick={() => setViewMode('list')}
+              style={{ background: viewMode === 'list' ? 'var(--accent-primary)' : 'transparent', color: viewMode === 'list' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <List size={16} />
+            </button>
+            <button 
+              onClick={() => setViewMode('map')}
+              style={{ background: viewMode === 'map' ? 'var(--accent-primary)' : 'transparent', color: viewMode === 'map' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <Map size={16} />
+            </button>
+          </div>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
-            <label className="input-label">Sortieren nach</label>
-            <select className="input-field" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-              <option value="distance">Entfernung</option>
-              <option value="price">Preis</option>
-              <option value="power">Leistung</option>
-            </select>
+        {viewMode === 'list' && (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
+              <select className="input-field" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                <option value="distance">Entfernung</option>
+                <option value="price">Preis</option>
+                <option value="power">Leistung</option>
+              </select>
+            </div>
+            <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
+              <select className="input-field" value={filterProvider} onChange={(e) => setFilterProvider(e.target.value)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                <option value="All">Alle Anbieter</option>
+                {providers.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
           </div>
-          <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
-            <label className="input-label">Anbieter</label>
-            <select className="input-field" value={filterProvider} onChange={(e) => setFilterProvider(e.target.value)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-              <option value="All">Alle</option>
-              {providers.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-        </div>
+        )}
 
         <div style={{ display: 'flex', gap: '1rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
@@ -196,7 +185,6 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
         </div>
       </div>
 
-      {/* Errors & Loading */}
       {error && (
         <div className="glass-panel" style={{ padding: '1rem', border: '1px solid var(--accent-danger)', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-danger)', fontWeight: 600 }}>
@@ -204,12 +192,12 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
             {error === 'NOT_FOUND' && "Adresse nicht gefunden"}
             {error === 'GEO_DENIED' && "Standortzugriff verweigert"}
             {error === 'NO_API_KEY' && "Kein API-Key hinterlegt"}
-            {error === 'INVALID_API_KEY' && "API-Key ungültig oder abgelaufen"}
-            {error === 'FETCH_ERROR' && "Fehler beim Laden der Daten"}
+            {error === 'INVALID_API_KEY' && "API-Key ungültig"}
+            {error === 'FETCH_ERROR' && "Fehler beim Laden"}
           </div>
           {(error === 'NO_API_KEY' || error === 'INVALID_API_KEY') && (
             <button className="btn-primary" onClick={onOpenSettings} style={{ alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-              API-Key eintragen
+              Key eintragen
             </button>
           )}
         </div>
@@ -221,7 +209,6 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
         </div>
       )}
 
-      {/* List */}
       {!isLoading && !error && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }}>
           
@@ -234,11 +221,11 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
           ) : (
             <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
               <Navigation size={48} style={{ opacity: 0.2 }} />
-              <p>Bitte suche nach einer Adresse oder verwende deinen Standort, um Ladesäulen in der Nähe zu finden.</p>
+              <p>Suche nach einer Adresse, um Ladesäulen zu finden.</p>
             </div>
           )}
           
-          {processedStations.map((station, index) => (
+          {searchedLocationName && viewMode === 'list' && processedStations.map((station, index) => (
             <StationCard 
               key={station.id} 
               station={station} 
@@ -249,6 +236,15 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
               index={index}
             />
           ))}
+
+          {searchedLocationName && viewMode === 'map' && (
+            <MapView 
+              stations={processedStations} 
+              favorites={favorites}
+              center={mapCenter}
+              onStationSelect={(station) => setSelectedStation(station)}
+            />
+          )}
         </div>
       )}
 

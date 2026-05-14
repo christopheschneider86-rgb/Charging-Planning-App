@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Route, Battery, Compass, ArrowRight, Play } from 'lucide-react';
+import { Route, Battery, Compass, ArrowRight, Play, AlertCircle } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
+import { geocodeAddress, fetchStations } from '../services/api';
 
-const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
+const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => {
   const [start, setStart] = useState('');
   const [destination, setDestination] = useState('');
   const [preference, setPreference] = useState('eco');
@@ -13,27 +14,61 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
   const [isPlanning, setIsPlanning] = useState(false);
   const [routeStations, setRouteStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
+  const [error, setError] = useState(null);
 
-  const handlePlanRoute = (e) => {
+  const handlePlanRoute = async (e) => {
     e.preventDefault();
     if (!start || !destination) return;
+    if (!apiKey) {
+      setError('NO_API_KEY');
+      return;
+    }
     
     setIsPlanning(true);
+    setError(null);
+    setRouteStations([]);
     
-    // Mock simulation of route planning
-    setTimeout(() => {
-      // Pick some random stations to simulate a route
-      const shuffled = [...stations].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, 3);
-      setRouteStations(selected);
+    try {
+      // 1. Geocode Start and Destination
+      const startCoords = await geocodeAddress(start);
+      const destCoords = await geocodeAddress(destination);
+
+      if (!startCoords || !destCoords) {
+        setError('GEO_FAILED');
+        setIsPlanning(false);
+        return;
+      }
+
+      // Very simplified "route" algorithm: Find midpoint and search stations there.
+      // A real route planner would use a routing API (like OSRM or Google Maps) to get a polyline,
+      // and search for stations along that polyline.
+      const midLat = (startCoords.lat + destCoords.lat) / 2;
+      const midLng = (startCoords.lng + destCoords.lng) / 2;
+
+      // Fetch stations near the midpoint
+      const stations = await fetchStations(midLat, midLng, apiKey, Math.max(15, deviation));
+      
+      if (stations.length === 0) {
+        setError('NO_STATIONS');
+      } else {
+        // Pick top 3 for mock routing feel
+        setRouteStations(stations.slice(0, 3));
+      }
+      
+    } catch (err) {
+      if (err.message === 'INVALID_API_KEY' || err.message === 'NO_API_KEY') {
+        setError('INVALID_API_KEY');
+      } else {
+        setError('FETCH_ERROR');
+      }
+    } finally {
       setIsPlanning(false);
-    }, 1500);
+    }
   };
 
   return (
     <div style={{ padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
       
-      {/* Route Form */}
       <form onSubmit={handlePlanRoute} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Route size={20} color="var(--accent-primary)" /> Strecke planen
@@ -49,7 +84,7 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
             <input 
               type="text" 
               className="input-field" 
-              placeholder="Startadresse" 
+              placeholder="Startadresse (z.B. Berlin)" 
               value={start}
               onChange={(e) => setStart(e.target.value)}
               required
@@ -58,12 +93,12 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
           
           <div className="input-group" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative', zIndex: 1 }}>
             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 0 4px var(--bg-secondary)' }}>
-              <MapPin size={14} color="white" />
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }}></div>
             </div>
             <input 
               type="text" 
               className="input-field" 
-              placeholder="Zieladresse" 
+              placeholder="Zieladresse (z.B. München)" 
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
               required
@@ -77,14 +112,7 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
               <Battery size={16} /> Restreichweite
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input 
-                type="number" 
-                className="input-field" 
-                value={range}
-                onChange={(e) => setRange(e.target.value)}
-                min="10"
-                max="1000"
-              />
+              <input type="number" className="input-field" value={range} onChange={(e) => setRange(e.target.value)} min="10" max="1000" />
               <span style={{ color: 'var(--text-secondary)' }}>km</span>
             </div>
           </div>
@@ -94,14 +122,7 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
               <Compass size={16} /> Max. Abweichung
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input 
-                type="number" 
-                className="input-field" 
-                value={deviation}
-                onChange={(e) => setDeviation(e.target.value)}
-                min="1"
-                max="50"
-              />
+              <input type="number" className="input-field" value={deviation} onChange={(e) => setDeviation(e.target.value)} min="1" max="50" />
               <span style={{ color: 'var(--text-secondary)' }}>km</span>
             </div>
           </div>
@@ -110,22 +131,8 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
         <div className="input-group" style={{ margin: 0 }}>
           <label className="input-label">Streckenpräferenz</label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              type="button"
-              className={preference === 'eco' ? 'btn-primary' : 'btn-secondary'} 
-              style={{ flex: 1, padding: '0.5rem' }}
-              onClick={() => setPreference('eco')}
-            >
-              Eco
-            </button>
-            <button 
-              type="button"
-              className={preference === 'fast' ? 'btn-primary' : 'btn-secondary'} 
-              style={{ flex: 1, padding: '0.5rem' }}
-              onClick={() => setPreference('fast')}
-            >
-              Schnell
-            </button>
+            <button type="button" className={preference === 'eco' ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem' }} onClick={() => setPreference('eco')}>Eco</button>
+            <button type="button" className={preference === 'fast' ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem' }} onClick={() => setPreference('fast')}>Schnell</button>
           </div>
         </div>
 
@@ -143,11 +150,28 @@ const RoutePlanner = ({ stations, favorites, toggleFavorite }) => {
         </button>
       </form>
 
-      {/* Results */}
+      {error && (
+        <div className="glass-panel" style={{ padding: '1rem', border: '1px solid var(--accent-danger)', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-danger)', fontWeight: 600 }}>
+            <AlertCircle size={18} />
+            {error === 'GEO_FAILED' && "Start- oder Zieladresse nicht gefunden"}
+            {error === 'NO_STATIONS' && "Keine Stationen auf dieser Route gefunden"}
+            {error === 'NO_API_KEY' && "Kein API-Key hinterlegt"}
+            {error === 'INVALID_API_KEY' && "API-Key ungültig"}
+            {error === 'FETCH_ERROR' && "Fehler beim Laden"}
+          </div>
+          {(error === 'NO_API_KEY' || error === 'INVALID_API_KEY') && (
+            <button className="btn-primary" onClick={onOpenSettings} style={{ alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+              Key eintragen
+            </button>
+          )}
+        </div>
+      )}
+
       {routeStations.length > 0 && !isPlanning && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }} className="animate-fade-in">
           <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Play size={18} color="var(--accent-success)" /> Empfohlene Ladestopps
+            <Play size={18} color="var(--accent-success)" /> Empfohlene Ladestopps auf der Route
           </h3>
           
           <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

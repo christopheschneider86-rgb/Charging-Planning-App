@@ -20,24 +20,18 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
       <div className="glass-panel animate-fade-in" style={{
         backgroundColor: 'var(--bg-secondary)',
         borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
-        padding: '0', maxHeight: '90vh', overflowY: 'auto'
+        padding: '0', maxHeight: '90vh', overflowY: 'auto',
+        position: 'relative'
       }}>
-        <div style={{ position: 'relative' }}>
-          <img 
-            src={station.imageUrl} 
-            alt={station.name} 
-            style={{ width: '100%', height: '200px', objectFit: 'cover' }} 
-          />
-          <button 
-            onClick={onClose}
-            className="btn-icon"
-            style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', color: 'white' }}
-          >
-            <X size={20} />
-          </button>
-        </div>
+        <button 
+          onClick={onClose}
+          className="btn-icon"
+          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'var(--bg-tertiary)' }}
+        >
+          <X size={20} />
+        </button>
 
-        <div style={{ padding: '1.5rem' }}>
+        <div style={{ padding: '1.5rem', paddingTop: '3rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
             <div>
               <h2 style={{ margin: '0 0 0.5rem 0' }}>{station.name}</h2>
