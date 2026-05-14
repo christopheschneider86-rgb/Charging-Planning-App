@@ -1,9 +1,27 @@
-import React, { useState } from 'react';
-import { Route, Battery, Compass, ArrowRight, Play, AlertCircle, Navigation, Map, List } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Route, Battery, Compass, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
 import { geocodeAddress, fetchStations } from '../services/api';
+
+// Helper for Haversine distance
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1); 
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  const d = R * c; 
+  return d;
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180);
+}
 
 const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => {
   const [start, setStart] = useState('');
@@ -20,6 +38,56 @@ const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => 
   const [startLocationCoords, setStartLocationCoords] = useState(null);
   const [routeLine, setRouteLine] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
+
+  // Filter States
+  const [sortBy, setSortBy] = useState('distance'); 
+  const [filterProvider, setFilterProvider] = useState('All');
+  const [filterFavorites, setFilterFavorites] = useState(false);
+  const [filterAvailable, setFilterAvailable] = useState(false);
+  const [minDistance, setMinDistance] = useState('');
+  const [maxDistance, setMaxDistance] = useState('');
+
+  const providers = useMemo(() => {
+    const pSet = new Set(routeStations.map(s => s.provider));
+    return Array.from(pSet).sort();
+  }, [routeStations]);
+
+  const processedStations = useMemo(() => {
+    let result = routeStations.map(station => {
+      // If we have a route line (start point), calculate distance from start
+      let distFromStart = 0;
+      if (routeLine && routeLine[0]) {
+        distFromStart = getDistanceFromLatLonInKm(routeLine[0][0], routeLine[0][1], station.lat, station.lng);
+      }
+      return { ...station, distanceFromStart: distFromStart };
+    });
+
+    if (filterProvider !== 'All') result = result.filter(s => s.provider === filterProvider);
+    if (filterFavorites) result = result.filter(s => favorites.stations.includes(s.id) || favorites.providers.includes(s.provider));
+    if (filterAvailable) result = result.filter(s => s.availableSpots > 0);
+    
+    if (minDistance !== '') {
+      const min = parseFloat(minDistance);
+      if (!isNaN(min)) result = result.filter(s => s.distanceFromStart >= min);
+    }
+    if (maxDistance !== '') {
+      const max = parseFloat(maxDistance);
+      if (!isNaN(max)) result = result.filter(s => s.distanceFromStart <= max);
+    }
+
+    result.sort((a, b) => {
+      const aFav = favorites.stations.includes(a.id) || favorites.providers.includes(a.provider) ? 1 : 0;
+      const bFav = favorites.stations.includes(b.id) || favorites.providers.includes(b.provider) ? 1 : 0;
+      if (aFav !== bFav) return bFav - aFav;
+      
+      if (sortBy === 'distance') return a.distanceFromStart - b.distanceFromStart;
+      if (sortBy === 'price') return a.price === 'k.A.' ? 1 : -1;
+      if (sortBy === 'power') return parseInt(b.power || 0) - parseInt(a.power || 0);
+      return 0;
+    });
+
+    return result;
+  }, [routeStations, sortBy, filterProvider, filterFavorites, filterAvailable, minDistance, maxDistance, favorites, routeLine]);
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -67,10 +135,9 @@ const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => 
         return;
       }
 
-      // Record route line for map
       setRouteLine([[startCoords.lat, startCoords.lng], [destCoords.lat, destCoords.lng]]);
 
-      // Very simplified "route" algorithm: Find midpoint and search stations there.
+      // Find midpoint and search stations there.
       const midLat = (startCoords.lat + destCoords.lat) / 2;
       const midLng = (startCoords.lng + destCoords.lng) / 2;
 
@@ -80,7 +147,6 @@ const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => 
       if (stations.length === 0) {
         setError('NO_STATIONS');
       } else {
-        // Render all stations found instead of slicing
         setRouteStations(stations);
       }
       
@@ -141,36 +207,6 @@ const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => 
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div className="input-group" style={{ margin: 0 }}>
-            <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Battery size={16} /> Restreichweite
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="number" className="input-field" value={range} onChange={(e) => setRange(e.target.value)} min="10" max="1000" />
-              <span style={{ color: 'var(--text-secondary)' }}>km</span>
-            </div>
-          </div>
-          
-          <div className="input-group" style={{ margin: 0 }}>
-            <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Compass size={16} /> Max. Abweichung
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="number" className="input-field" value={deviation} onChange={(e) => setDeviation(e.target.value)} min="1" max="50" />
-              <span style={{ color: 'var(--text-secondary)' }}>km</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="input-group" style={{ margin: 0 }}>
-          <label className="input-label">Streckenpräferenz</label>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="button" className={preference === 'eco' ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem' }} onClick={() => setPreference('eco')}>Eco</button>
-            <button type="button" className={preference === 'fast' ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem' }} onClick={() => setPreference('fast')}>Schnell</button>
-          </div>
-        </div>
-
         <button type="submit" className="btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={isPlanning}>
           {isPlanning ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -208,51 +244,121 @@ const RoutePlanner = ({ apiKey, favorites, toggleFavorite, onOpenSettings }) => 
       {routeStations.length > 0 && !isPlanning && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }} className="animate-fade-in">
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Play size={18} color="var(--accent-success)" /> Ladestopps ({routeStations.length})
-            </h3>
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
-              <button 
-                onClick={() => setViewMode('list')}
-                style={{ background: viewMode === 'list' ? 'var(--accent-primary)' : 'transparent', color: viewMode === 'list' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
-              >
-                <List size={16} />
-              </button>
-              <button 
-                onClick={() => setViewMode('map')}
-                style={{ background: viewMode === 'map' ? 'var(--accent-primary)' : 'transparent', color: viewMode === 'map' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
-              >
-                <Map size={16} />
-              </button>
+          {/* Filters */}
+          <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <SlidersHorizontal size={18} color="var(--accent-primary)" />
+                <span style={{ fontWeight: 600 }}>Filter & Ansicht</span>
+              </div>
+              
+              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
+                <button 
+                  onClick={() => setViewMode('list')}
+                  style={{ background: viewMode === 'list' ? 'var(--accent-primary)' : 'transparent', color: viewMode === 'list' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  <List size={16} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('map')}
+                  style={{ background: viewMode === 'map' ? 'var(--accent-primary)' : 'transparent', color: viewMode === 'map' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  <Map size={16} />
+                </button>
+              </div>
             </div>
+
+            {viewMode === 'list' && (
+              <>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
+                    <select className="input-field" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                      <option value="distance">Entfernung vom Start</option>
+                      <option value="price">Preis</option>
+                      <option value="power">Leistung</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
+                    <select className="input-field" value={filterProvider} onChange={(e) => setFilterProvider(e.target.value)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                      <option value="All">Alle Anbieter</option>
+                      {providers.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Von km</span>
+                    <input 
+                      type="number" 
+                      placeholder="0" 
+                      value={minDistance} 
+                      onChange={(e) => setMinDistance(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '0.875rem' }} 
+                    />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Bis km</span>
+                    <input 
+                      type="number" 
+                      placeholder="∞" 
+                      value={maxDistance} 
+                      onChange={(e) => setMaxDistance(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '0.875rem' }} 
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={filterAvailable} onChange={(e) => setFilterAvailable(e.target.checked)} style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }} />
+                    Nur Verfügbare
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={filterFavorites} onChange={(e) => setFilterFavorites(e.target.checked)} style={{ accentColor: 'var(--accent-danger)', width: '16px', height: '16px' }} />
+                    Nur Favoriten
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Play size={18} color="var(--accent-success)" /> Ladestopps ({processedStations.length})
+            </h3>
           </div>
           
           {viewMode === 'list' ? (
             <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '0.5rem' }}>
               <div style={{ position: 'absolute', left: '20px', top: '30px', bottom: '30px', width: '2px', background: 'var(--border-color)', zIndex: 0, borderStyle: 'dashed' }}></div>
               
-              {routeStations.map((station, index) => (
-                <div key={station.id} style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 1 }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-secondary)', border: '2px solid var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 'bold', color: 'var(--accent-primary)' }}>
-                    {index + 1}
+              {processedStations.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem 0' }}>Keine Ladesäulen für diese Filter gefunden.</div>
+              ) : (
+                processedStations.map((station, index) => (
+                  <div key={station.id} style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 1 }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-secondary)', border: '2px solid var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 'bold', color: 'var(--accent-primary)' }}>
+                      {index + 1}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <StationCard 
+                        station={station} 
+                        isFavorite={favorites.stations.includes(station.id)}
+                        isProviderFavorite={favorites.providers.includes(station.provider)}
+                        toggleFavorite={() => toggleFavorite(station.id)}
+                        onClick={() => setSelectedStation(station)}
+                        index={index}
+                        distanceLabel={`${station.distanceFromStart.toFixed(1)} km vom Start`}
+                      />
+                    </div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <StationCard 
-                      station={station} 
-                      isFavorite={favorites.stations.includes(station.id)}
-                      isProviderFavorite={favorites.providers.includes(station.provider)}
-                      toggleFavorite={() => toggleFavorite(station.id)}
-                      onClick={() => setSelectedStation(station)}
-                      index={index}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           ) : (
             <MapView 
-              stations={routeStations} 
+              stations={processedStations} 
               favorites={favorites}
               center={routeLine ? [(routeLine[0][0] + routeLine[1][0])/2, (routeLine[0][1] + routeLine[1][1])/2] : null}
               routeLine={routeLine}

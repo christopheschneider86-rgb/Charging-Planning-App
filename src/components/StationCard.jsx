@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heart, Zap, MapPin, Euro } from 'lucide-react';
 
-const StationCard = ({ station, isFavorite, isProviderFavorite, toggleFavorite, onClick, index }) => {
+const StationCard = ({ station, isFavorite, isProviderFavorite, toggleFavorite, onClick, index, distanceLabel }) => {
   return (
     <div 
       className="glass-panel animate-fade-in" 
@@ -35,7 +35,7 @@ const StationCard = ({ station, isFavorite, isProviderFavorite, toggleFavorite, 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            <MapPin size={14} /> {station.distance} {station.distanceUnit}
+            <MapPin size={14} /> {distanceLabel ? distanceLabel : `${station.distance} ${station.distanceUnit || 'km'}`}
           </span>
           {station.price !== 'k.A.' && (
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
