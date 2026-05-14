@@ -56,10 +56,12 @@ export const fetchStations = async (lat, lng, apiKey, distanceKm = 10) => {
         maxPower = Math.max(...item.Connections.map(c => c.PowerKW || 0));
       }
 
-      // Format provider name
+      // Format provider name and url
       let provider = 'Unbekannt';
-      if (item.OperatorInfo && item.OperatorInfo.Title) {
-        provider = item.OperatorInfo.Title;
+      let providerUrl = null;
+      if (item.OperatorInfo) {
+        if (item.OperatorInfo.Title) provider = item.OperatorInfo.Title;
+        if (item.OperatorInfo.WebsiteURL) providerUrl = item.OperatorInfo.WebsiteURL;
       }
 
       // Address
@@ -75,6 +77,7 @@ export const fetchStations = async (lat, lng, apiKey, distanceKm = 10) => {
         id: item.ID.toString(),
         name: addrInfo.Title || 'Ladestation',
         provider: provider,
+        providerUrl: providerUrl,
         power: maxPower > 0 ? `${maxPower}kW` : 'k.A.',
         price: item.UsageCost ? item.UsageCost : 'k.A.',
         distance: item.AddressInfo && item.AddressInfo.Distance ? item.AddressInfo.Distance.toFixed(1) : 0,

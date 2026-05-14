@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Zap, MapPin, Euro, X, Copy, Check, Info } from 'lucide-react';
+import { Heart, Zap, MapPin, Euro, X, Copy, Check, Info, ExternalLink } from 'lucide-react';
 
 const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggleFavorite, toggleProviderFavorite }) => {
   const [copied, setCopied] = useState(false);
@@ -36,7 +36,13 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
             <div>
               <h2 style={{ margin: '0 0 0.5rem 0' }}>{station.name}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Anbieter: {station.provider}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Anbieter: {station.providerUrl ? (
+                    <a href={station.providerUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      {station.provider} <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    station.provider
+                  )}</span>
                 <button 
                   onClick={toggleProviderFavorite}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}

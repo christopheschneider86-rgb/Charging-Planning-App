@@ -21,6 +21,7 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
   const [error, setError] = useState(null);
   const [searchedLocationName, setSearchedLocationName] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
 
   const providers = useMemo(() => {
     const pSet = new Set(liveStations.map(s => s.provider));
@@ -55,6 +56,7 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
     if (!locationInput.trim()) return;
     setIsLoading(true);
     setError(null);
+    setUserLocation(null); // Clear user location when searching a manual address
     const coords = await geocodeAddress(locationInput);
     if (coords) {
       await loadStationsForLocation(coords.lat, coords.lng, coords.name);
@@ -73,7 +75,10 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
     setError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        loadStationsForLocation(position.coords.latitude, position.coords.longitude, "Mein Standort");
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setUserLocation([lat, lng]);
+        loadStationsForLocation(lat, lng, "Mein Standort");
       },
       (err) => {
         setError('GEO_DENIED');
@@ -242,6 +247,7 @@ const StationsList = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorit
               stations={processedStations} 
               favorites={favorites}
               center={mapCenter}
+              userLocation={userLocation}
               onStationSelect={(station) => setSelectedStation(station)}
             />
           )}
