@@ -65,6 +65,11 @@ function App() {
   const [activeVehicleId, setActiveVehicleId] = usePersisted('chargeflow_active_vehicle', null);
   const [safetyKm, setSafetyKm] = usePersisted('chargeflow_safety_km', 20);
 
+  // Saved routes
+  const [savedRoutes, setSavedRoutes] = usePersisted('chargeflow_routes', []);
+  const addSavedRoute = (route) => setSavedRoutes(prev => [...prev, { id: `route-${Date.now()}`, ...route }]);
+  const removeSavedRoute = (id) => setSavedRoutes(prev => prev.filter(r => r.id !== id));
+
   const addVehicle = (v) => {
     const vehicle = { id: `veh-${Date.now()}`, ...v };
     setVehicles(prev => [...prev, vehicle]);
@@ -91,7 +96,9 @@ function App() {
     filterAvailable: false,
     minDistance: '',
     maxDistance: '',
-    viewMode: 'list'
+    viewMode: 'list',
+    minPowerKW: 0,
+    excludedProviders: []
   });
   // Stations themselves are not persisted (they're fetched data). But keep last list in-memory so tab switch preserves it.
   const [nearMeStations, setNearMeStations] = useState([]);
@@ -109,7 +116,9 @@ function App() {
     maxDistance: '',
     viewMode: 'list',
     corridorKm: 5,
-    startSoC: 80
+    startSoC: 80,
+    minPowerKW: 0,
+    excludedProviders: []
   });
   const [routeData, setRouteData] = useState({ stations: [], polyline: null, startCoords: null, destCoords: null, distanceKm: 0, durationMin: 0 });
 
@@ -201,7 +210,7 @@ function App() {
       'chargeflow_radius', 'chargeflow_minpower', 'chargeflow_connectors',
       'chargeflow_only_operational', 'chargeflow_auto_locate', 'chargeflow_tab',
       'chargeflow_range', 'chargeflow_places', 'chargeflow_vehicles',
-      'chargeflow_active_vehicle', 'chargeflow_safety_km'
+      'chargeflow_active_vehicle', 'chargeflow_safety_km', 'chargeflow_routes'
     ].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   };
@@ -215,7 +224,8 @@ function App() {
     savedPlaces,
     vehicles,
     activeVehicleId,
-    safetyKm
+    safetyKm,
+    savedRoutes
   };
 
   return (
@@ -573,6 +583,8 @@ function App() {
             setData={setRouteData}
             lastNearMeQuery={nearMe.locationInput}
             setActiveVehicleId={setActiveVehicleId}
+            addSavedRoute={addSavedRoute}
+            removeSavedRoute={removeSavedRoute}
           />
         </div>
         <div style={{ display: activeTab === 'favorites' ? 'block' : 'none', height: '100%' }}>

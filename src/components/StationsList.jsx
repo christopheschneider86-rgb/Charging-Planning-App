@@ -4,6 +4,7 @@ import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
 import AddressAutocomplete from './AddressAutocomplete';
+import ProviderExclude from './ProviderExclude';
 import { fetchStations, geocodeAddress } from '../services/api';
 
 const StationsList = ({
@@ -26,12 +27,15 @@ const StationsList = ({
     if (state.filterInRange) n++;
     if (state.minDistance) n++;
     if (state.maxDistance) n++;
+    if (state.minPowerKW > 0) n++;
+    if (state.excludedProviders && state.excludedProviders.length) n++;
     return n;
   }, [state]);
 
   const clearFilters = () => update({
     filterProvider: 'All', filterFavorites: false, filterAvailable: false,
-    filterInRange: false, minDistance: '', maxDistance: ''
+    filterInRange: false, minDistance: '', maxDistance: '',
+    minPowerKW: 0, excludedProviders: []
   });
 
   const handleRefresh = () => {
@@ -114,10 +118,14 @@ const StationsList = ({
       result = result.filter(s => parseFloat(s.distance) <= reachable);
     }
 
-    if (prefs.minPowerKW > 0) result = result.filter(s => (s.powerKW || 0) >= prefs.minPowerKW);
+    const effectiveMinPower = Math.max(prefs.minPowerKW || 0, state.minPowerKW || 0);
+    if (effectiveMinPower > 0) result = result.filter(s => (s.powerKW || 0) >= effectiveMinPower);
     if (prefs.onlyOperational) result = result.filter(s => s.isOperational !== false);
     if (prefs.preferredConnectors && prefs.preferredConnectors.length > 0) {
       result = result.filter(s => s.connectorTypes && s.connectorTypes.some(t => prefs.preferredConnectors.some(pc => t.toLowerCase().includes(pc.toLowerCase().split(' ')[0]))));
+    }
+    if (state.excludedProviders && state.excludedProviders.length > 0) {
+      result = result.filter(s => !state.excludedProviders.includes(s.provider));
     }
 
     if (state.minDistance !== '' && !isNaN(parseFloat(state.minDistance))) {
@@ -250,6 +258,18 @@ const StationsList = ({
             <input type="number" min={0} placeholder="∞" value={state.maxDistance} onChange={(e) => update({ maxDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
           </div>
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+          <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Min. Leistung</span>
+          <input type="range" min={0} max={350} step={11} value={state.minPowerKW || 0} onChange={(e) => update({ minPowerKW: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
+          <strong style={{ color: 'var(--accent-primary)', minWidth: 56, textAlign: 'right' }}>{state.minPowerKW > 0 ? `${state.minPowerKW} kW` : 'beliebig'}</strong>
+        </div>
+
+        <ProviderExclude
+          allProviders={providers}
+          excluded={state.excludedProviders || []}
+          onChange={(arr) => update({ excludedProviders: arr })}
+        />
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>

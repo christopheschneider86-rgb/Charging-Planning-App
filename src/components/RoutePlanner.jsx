@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging, Home, Briefcase, MapPin, Car, Battery, BatteryWarning } from 'lucide-react';
+import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging, Home, Briefcase, MapPin, Car, Battery, BatteryWarning, Save, Bookmark, Trash2 } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
 import AddressAutocomplete from './AddressAutocomplete';
+import ProviderExclude from './ProviderExclude';
 import { geocodeAddress, fetchRoute, fetchStationsAlongRoute } from '../services/api';
 
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
@@ -33,13 +34,16 @@ const socColor = (soc, safetySoc) => {
 
 const RoutePlanner = ({
   apiKey, favorites, toggleFavorite, toggleProviderFavorite, onOpenSettings,
-  mapStyle, prefs, state, setState, data, setData, setActiveVehicleId
+  mapStyle, prefs, state, setState, data, setData, setActiveVehicleId,
+  addSavedRoute, removeSavedRoute
 }) => {
   const [isPlanning, setIsPlanning] = useState(false);
   const [selectedStation, setSelectedStation] = useState(null);
   const [error, setError] = useState(null);
   const [startCoordsCached, setStartCoordsCached] = useState(null);
   const [destCoordsCached, setDestCoordsCached] = useState(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [routeNameDraft, setRouteNameDraft] = useState('');
 
   const update = (patch) => setState(prev => ({ ...prev, ...patch }));
 
@@ -51,12 +55,15 @@ const RoutePlanner = ({
     if (state.filterInRange) n++;
     if (state.minDistance) n++;
     if (state.maxDistance) n++;
+    if (state.minPowerKW > 0) n++;
+    if (state.excludedProviders && state.excludedProviders.length) n++;
     return n;
   }, [state]);
 
   const clearFilters = () => update({
     filterProvider: 'All', filterFavorites: false, filterAvailable: false,
-    filterInRange: false, minDistance: '', maxDistance: ''
+    filterInRange: false, minDistance: '', maxDistance: '',
+    minPowerKW: 0, excludedProviders: []
   });
 
   const providers = useMemo(() => {
@@ -81,10 +88,14 @@ const RoutePlanner = ({
       result = result.filter(s => s.distanceFromStart <= reachable);
     }
 
-    if (prefs.minPowerKW > 0) result = result.filter(s => (s.powerKW || 0) >= prefs.minPowerKW);
+    const effectiveMinPower = Math.max(prefs.minPowerKW || 0, state.minPowerKW || 0);
+    if (effectiveMinPower > 0) result = result.filter(s => (s.powerKW || 0) >= effectiveMinPower);
     if (prefs.onlyOperational) result = result.filter(s => s.isOperational !== false);
     if (prefs.preferredConnectors && prefs.preferredConnectors.length > 0) {
       result = result.filter(s => s.connectorTypes && s.connectorTypes.some(t => prefs.preferredConnectors.some(pc => t.toLowerCase().includes(pc.toLowerCase().split(' ')[0]))));
+    }
+    if (state.excludedProviders && state.excludedProviders.length > 0) {
+      result = result.filter(s => !state.excludedProviders.includes(s.provider));
     }
 
     if (state.minDistance !== '' && !isNaN(parseFloat(state.minDistance))) {
@@ -275,6 +286,99 @@ const RoutePlanner = ({
           </button>
         )}
 
+        {/* Saved routes */}
+        {((prefs.savedRoutes && prefs.savedRoutes.length > 0) || (state.start && state.destination)) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Bookmark size={12} /> Gespeicherte Routen
+              </span>
+              {state.start && state.destination && !saveDialogOpen && (
+                <button
+                  type="button"
+                  onClick={() => { setRouteNameDraft(''); setSaveDialogOpen(true); }}
+                  className="btn-secondary"
+                  style={{ padding: '0.25rem 0.55rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                  title="Aktuelle Route speichern"
+                >
+                  <Save size={12} /> Speichern
+                </button>
+              )}
+            </div>
+
+            {saveDialogOpen && (
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', background: 'rgba(0,210,255,0.06)', padding: '0.4rem', borderRadius: 8, border: '1px dashed var(--border-color)' }}>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Routenname (z.B. 'Berlin → München')"
+                  value={routeNameDraft}
+                  onChange={(e) => setRouteNameDraft(e.target.value)}
+                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', flex: 1 }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}
+                  disabled={!routeNameDraft.trim()}
+                  onClick={() => {
+                    if (!routeNameDraft.trim() || !addSavedRoute) return;
+                    addSavedRoute({
+                      name: routeNameDraft.trim(),
+                      start: state.start,
+                      destination: state.destination,
+                      startCoords: startCoordsCached,
+                      destCoords: destCoordsCached,
+                      corridorKm: state.corridorKm || 5,
+                      vehicleId: prefs.activeVehicleId || null,
+                      startSoC: state.startSoC ?? 80
+                    });
+                    setSaveDialogOpen(false);
+                    setRouteNameDraft('');
+                  }}
+                >Speichern</button>
+                <button type="button" onClick={() => setSaveDialogOpen(false)} className="btn-icon" style={{ width: 28, height: 28 }}><Trash2 size={12} /></button>
+              </div>
+            )}
+
+            {prefs.savedRoutes && prefs.savedRoutes.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                {prefs.savedRoutes.map(r => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'stretch', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (r.startCoords) setStartCoordsCached(r.startCoords);
+                        if (r.destCoords) setDestCoordsCached(r.destCoords);
+                        update({
+                          start: r.start,
+                          destination: r.destination,
+                          corridorKm: r.corridorKm || 5,
+                          startSoC: r.startSoC ?? 80
+                        });
+                        if (r.vehicleId && setActiveVehicleId) setActiveVehicleId(r.vehicleId);
+                      }}
+                      title={`${r.start} → ${r.destination}`}
+                      style={{ background: 'transparent', color: 'var(--accent-primary)', border: 'none', padding: '0.3rem 0.65rem', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <Bookmark size={12} /> {r.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeSavedRoute && removeSavedRoute(r.id)}
+                      title="Route löschen"
+                      style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', borderLeft: '1px solid var(--border-color)', padding: '0.3rem 0.5rem', cursor: 'pointer' }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={isPlanning}>
           {isPlanning ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -390,6 +494,18 @@ const RoutePlanner = ({
                 <input type="number" min={0} placeholder="∞" value={state.maxDistance} onChange={(e) => update({ maxDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
               </div>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Min. Leistung</span>
+              <input type="range" min={0} max={350} step={11} value={state.minPowerKW || 0} onChange={(e) => update({ minPowerKW: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
+              <strong style={{ color: 'var(--accent-primary)', minWidth: 56, textAlign: 'right' }}>{state.minPowerKW > 0 ? `${state.minPowerKW} kW` : 'beliebig'}</strong>
+            </div>
+
+            <ProviderExclude
+              allProviders={providers}
+              excluded={state.excludedProviders || []}
+              onChange={(arr) => update({ excludedProviders: arr })}
+            />
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
