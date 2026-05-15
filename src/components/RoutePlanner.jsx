@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging, Home, Briefcase, MapPin } from 'lucide-react';
+import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging, Home, Briefcase, MapPin, Car, Battery, BatteryWarning } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
@@ -14,9 +14,26 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// SoC remaining at distance D from start, given vehicle and safety reserve.
+// Returns null if no vehicle. Result is a percentage 0..100 (can be negative).
+const computeSoCAt = (distKm, startSoC, vehicle, safetyKm) => {
+  if (!vehicle || !vehicle.batteryKWh || !vehicle.consumptionKWh100) return null;
+  const usableDistance = Math.max(0, distKm - 0); // safety applied in display later
+  const kwhUsed = (usableDistance * vehicle.consumptionKWh100) / 100;
+  const socUsed = (kwhUsed / vehicle.batteryKWh) * 100;
+  return startSoC - socUsed;
+};
+
+const socColor = (soc, safetySoc) => {
+  if (soc == null) return 'var(--text-muted)';
+  if (soc < safetySoc) return 'var(--accent-danger)';
+  if (soc < safetySoc + 15) return 'var(--accent-warning)';
+  return 'var(--accent-success)';
+};
+
 const RoutePlanner = ({
   apiKey, favorites, toggleFavorite, toggleProviderFavorite, onOpenSettings,
-  mapStyle, prefs, state, setState, data, setData
+  mapStyle, prefs, state, setState, data, setData, setActiveVehicleId
 }) => {
   const [isPlanning, setIsPlanning] = useState(false);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -226,6 +243,38 @@ const RoutePlanner = ({
           <strong style={{ fontSize: '0.75rem', color: 'var(--accent-primary)' }}>±{state.corridorKm || 5} km</strong>
         </div>
 
+        {prefs.vehicles && prefs.vehicles.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,210,255,0.04)', padding: '0.6rem 0.75rem', borderRadius: 10, border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Car size={14} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Fahrzeug</span>
+              </div>
+              <select
+                className="input-field"
+                value={prefs.activeVehicleId || ''}
+                onChange={(e) => setActiveVehicleId(e.target.value || null)}
+                style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', flex: 1, minWidth: 140 }}
+              >
+                <option value="">— kein Fahrzeug —</option>
+                {prefs.vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            {prefs.activeVehicleId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <Battery size={14} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Start-Ladung:</span>
+                <input type="range" min={5} max={100} step={5} value={state.startSoC ?? 80} onChange={(e) => update({ startSoC: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
+                <strong style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', minWidth: 36, textAlign: 'right' }}>{state.startSoC ?? 80}%</strong>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button type="button" onClick={onOpenSettings} className="btn-secondary" style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start' }}>
+            <Car size={14} /> Fahrzeug anlegen für SoC-Berechnung
+          </button>
+        )}
+
         <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={isPlanning}>
           {isPlanning ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -257,24 +306,47 @@ const RoutePlanner = ({
         </div>
       )}
 
-      {data.polyline && data.distanceKm > 0 && !isPlanning && (
-        <div className="glass-panel" style={{ padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-around', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Route size={16} color="var(--accent-primary)" />
-            <span style={{ fontSize: '0.875rem' }}><strong>{data.distanceKm.toFixed(0)}</strong> km</span>
-          </div>
-          {data.durationMin > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Clock size={16} color="var(--accent-primary)" />
-              <span style={{ fontSize: '0.875rem' }}><strong>{Math.floor(data.durationMin/60)}h {Math.round(data.durationMin%60)}m</strong></span>
+      {data.polyline && data.distanceKm > 0 && !isPlanning && (() => {
+        const vehicle = prefs.vehicles?.find(v => v.id === prefs.activeVehicleId) || null;
+        const safetyKm = prefs.safetyKm || 0;
+        const safetySoc = vehicle ? (safetyKm * vehicle.consumptionKWh100 / 100 / vehicle.batteryKWh) * 100 : 0;
+        const arrivalSoc = vehicle ? computeSoCAt(data.distanceKm, state.startSoC ?? 80, vehicle, safetyKm) : null;
+        const needsCharge = vehicle && arrivalSoc != null && arrivalSoc < safetySoc;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="glass-panel" style={{ padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-around', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Route size={16} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.875rem' }}><strong>{data.distanceKm.toFixed(0)}</strong> km</span>
+              </div>
+              {data.durationMin > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Clock size={16} color="var(--accent-primary)" />
+                  <span style={{ fontSize: '0.875rem' }}><strong>{Math.floor(data.durationMin/60)}h {Math.round(data.durationMin%60)}m</strong></span>
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ZapIcon size={16} color="var(--accent-primary)" />
+                <span style={{ fontSize: '0.875rem' }}><strong>{data.stations.length}</strong> Stops</span>
+              </div>
+              {vehicle && arrivalSoc != null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} title={`Berechnet mit ${vehicle.name}: ${vehicle.consumptionKWh100} kWh/100km`}>
+                  <Battery size={16} color={socColor(arrivalSoc, safetySoc)} />
+                  <span style={{ fontSize: '0.875rem' }}>
+                    Ankunft <strong style={{ color: socColor(arrivalSoc, safetySoc) }}>{arrivalSoc.toFixed(0)}%</strong>
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ZapIcon size={16} color="var(--accent-primary)" />
-            <span style={{ fontSize: '0.875rem' }}><strong>{data.stations.length}</strong> Stops</span>
+            {needsCharge && (
+              <div className="glass-panel" style={{ padding: '0.6rem 0.85rem', border: '1px solid var(--accent-warning)', backgroundColor: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--accent-warning)' }}>
+                <BatteryWarning size={16} />
+                Reicht nicht bis ans Ziel — mindestens einmal unterwegs laden.
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {data.stations.length > 0 && !isPlanning && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }} className="animate-fade-in">
@@ -348,26 +420,34 @@ const RoutePlanner = ({
               <div style={{ position: 'absolute', left: 20, top: 30, bottom: 30, width: 2, background: 'var(--border-color)', borderStyle: 'dashed' }} />
               {processedStations.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem 0' }}>Keine Ladesäulen für diese Filter.</div>
-              ) : (
-                processedStations.map((station, index) => (
-                  <div key={station.id} style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 1 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-secondary)', border: '2px solid var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 'bold', color: 'var(--accent-primary)' }}>
-                      {index + 1}
+              ) : (() => {
+                const vehicle = prefs.vehicles?.find(v => v.id === prefs.activeVehicleId) || null;
+                const safetyKm = prefs.safetyKm || 0;
+                const safetySoc = vehicle ? (safetyKm * vehicle.consumptionKWh100 / 100 / vehicle.batteryKWh) * 100 : 0;
+                return processedStations.map((station, index) => {
+                  const soc = vehicle ? computeSoCAt(station.distanceFromStart, state.startSoC ?? 80, vehicle, safetyKm) : null;
+                  const color = socColor(soc, safetySoc);
+                  const distLabel = `${station.distanceFromStart.toFixed(1)} km vom Start` + (soc != null ? ` · ~${soc.toFixed(0)}% Restladung` : '');
+                  return (
+                    <div key={station.id} style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 1 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-secondary)', border: `2px solid ${vehicle ? color : 'var(--accent-primary)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 'bold', color: vehicle ? color : 'var(--accent-primary)' }}>
+                        {index + 1}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <StationCard
+                          station={station}
+                          isFavorite={favorites.stations.some(f => (typeof f === 'string' ? f === station.id : f.id === station.id))}
+                          isProviderFavorite={favorites.providers.includes(station.provider)}
+                          toggleFavorite={() => toggleFavorite(station)}
+                          onClick={() => setSelectedStation(station)}
+                          index={index}
+                          distanceLabel={distLabel}
+                        />
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <StationCard
-                        station={station}
-                        isFavorite={favorites.stations.some(f => (typeof f === 'string' ? f === station.id : f.id === station.id))}
-                        isProviderFavorite={favorites.providers.includes(station.provider)}
-                        toggleFavorite={() => toggleFavorite(station)}
-                        onClick={() => setSelectedStation(station)}
-                        index={index}
-                        distanceLabel={`${station.distanceFromStart.toFixed(1)} km vom Start`}
-                      />
-                    </div>
-                  </div>
-                ))
-              )}
+                  );
+                });
+              })()}
             </div>
           ) : (
             <MapView

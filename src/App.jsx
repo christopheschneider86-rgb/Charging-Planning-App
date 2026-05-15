@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus } from 'lucide-react';
+import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery } from 'lucide-react';
 import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
 import FavoritesView from './components/FavoritesView';
@@ -60,6 +60,22 @@ function App() {
   };
   const removePlace = (id) => setSavedPlaces(prev => prev.filter(p => p.id !== id));
 
+  // Vehicles
+  const [vehicles, setVehicles] = usePersisted('chargeflow_vehicles', []);
+  const [activeVehicleId, setActiveVehicleId] = usePersisted('chargeflow_active_vehicle', null);
+  const [safetyKm, setSafetyKm] = usePersisted('chargeflow_safety_km', 20);
+
+  const addVehicle = (v) => {
+    const vehicle = { id: `veh-${Date.now()}`, ...v };
+    setVehicles(prev => [...prev, vehicle]);
+    if (!activeVehicleId) setActiveVehicleId(vehicle.id);
+  };
+  const updateVehicle = (id, patch) => setVehicles(prev => prev.map(v => v.id === id ? { ...v, ...patch } : v));
+  const removeVehicle = (id) => {
+    setVehicles(prev => prev.filter(v => v.id !== id));
+    if (activeVehicleId === id) setActiveVehicleId(null);
+  };
+
   // Favorites
   const [favorites, setFavorites] = usePersisted('chargeflow_favorites', { stations: [], providers: [] });
 
@@ -92,7 +108,8 @@ function App() {
     minDistance: '',
     maxDistance: '',
     viewMode: 'list',
-    corridorKm: 5
+    corridorKm: 5,
+    startSoC: 80
   });
   const [routeData, setRouteData] = useState({ stations: [], polyline: null, startCoords: null, destCoords: null, distanceKm: 0, durationMin: 0 });
 
@@ -162,13 +179,29 @@ function App() {
   const work = savedPlaces.find(p => p.id === 'work');
   const customPlaces = savedPlaces.filter(p => p.type === 'custom');
 
+  // Vehicle draft
+  const [vehDraft, setVehDraft] = useState({ name: '', batteryKWh: '', consumptionKWh100: '', dcMaxKW: '' });
+  const handleAddVehicle = () => {
+    const battery = parseFloat(vehDraft.batteryKWh);
+    const consumption = parseFloat(vehDraft.consumptionKWh100);
+    if (!vehDraft.name.trim() || !battery || !consumption) return;
+    addVehicle({
+      name: vehDraft.name.trim(),
+      batteryKWh: battery,
+      consumptionKWh100: consumption,
+      dcMaxKW: vehDraft.dcMaxKW ? parseFloat(vehDraft.dcMaxKW) : null
+    });
+    setVehDraft({ name: '', batteryKWh: '', consumptionKWh100: '', dcMaxKW: '' });
+  };
+
   const handleResetData = () => {
     if (!window.confirm('Alle Suchen, Favoriten und Einstellungen zurücksetzen?')) return;
     [
       'chargeflow_favorites', 'chargeflow_nearme', 'chargeflow_route',
       'chargeflow_radius', 'chargeflow_minpower', 'chargeflow_connectors',
       'chargeflow_only_operational', 'chargeflow_auto_locate', 'chargeflow_tab',
-      'chargeflow_range', 'chargeflow_places'
+      'chargeflow_range', 'chargeflow_places', 'chargeflow_vehicles',
+      'chargeflow_active_vehicle', 'chargeflow_safety_km'
     ].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   };
@@ -179,7 +212,10 @@ function App() {
     onlyOperational,
     defaultRadius,
     currentRangeKm,
-    savedPlaces
+    savedPlaces,
+    vehicles,
+    activeVehicleId,
+    safetyKm
   };
 
   return (
@@ -245,6 +281,98 @@ function App() {
                 <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                   Aktiviert den Filter „Nur in Reichweite". Berechnung: Luftlinie × 1.3 als Fahrt-Reserve.
                 </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                  <Car size={14} /> Fahrzeuge
+                </label>
+
+                {vehicles.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {vehicles.map(v => {
+                      const active = v.id === activeVehicleId;
+                      return (
+                        <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', borderRadius: 8, padding: '0.5rem 0.75rem', border: active ? '1px solid var(--accent-primary)' : '1px solid transparent' }}>
+                          <button
+                            onClick={() => setActiveVehicleId(active ? null : v.id)}
+                            title={active ? 'Deaktivieren' : 'Als aktives Fahrzeug wählen'}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+                          >
+                            <Car size={16} color={active ? 'var(--accent-primary)' : 'var(--text-muted)'} />
+                          </button>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{v.name} {active && <span style={{ fontSize: '0.65rem', color: 'var(--accent-primary)' }}>· aktiv</span>}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {v.batteryKWh} kWh · {v.consumptionKWh100} kWh/100km{v.dcMaxKW ? ` · max ${v.dcMaxKW} kW DC` : ''}
+                            </div>
+                          </div>
+                          <button onClick={() => removeVehicle(v.id)} className="btn-icon" style={{ width: 28, height: 28 }} title="Entfernen"><Trash2 size={14} /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Noch kein Fahrzeug angelegt. Mit Fahrzeug kann der Routenplaner den Ladezustand pro Stopp berechnen.</p>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(0,210,255,0.04)', padding: '0.6rem', borderRadius: 10, border: '1px dashed var(--border-color)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Plus size={12} /> Fahrzeug hinzufügen
+                  </div>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Name (z.B. 'Ioniq 5')"
+                    value={vehDraft.name}
+                    onChange={(e) => setVehDraft(d => ({ ...d, name: e.target.value }))}
+                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <input
+                      type="number" min={5} max={200} step="0.1"
+                      className="input-field"
+                      placeholder="Akku kWh"
+                      value={vehDraft.batteryKWh}
+                      onChange={(e) => setVehDraft(d => ({ ...d, batteryKWh: e.target.value }))}
+                      style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', flex: 1 }}
+                    />
+                    <input
+                      type="number" min={5} max={50} step="0.1"
+                      className="input-field"
+                      placeholder="kWh/100km"
+                      value={vehDraft.consumptionKWh100}
+                      onChange={(e) => setVehDraft(d => ({ ...d, consumptionKWh100: e.target.value }))}
+                      style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', flex: 1 }}
+                    />
+                  </div>
+                  <input
+                    type="number" min={10} max={400} step="1"
+                    className="input-field"
+                    placeholder="max DC kW (optional)"
+                    value={vehDraft.dcMaxKW}
+                    onChange={(e) => setVehDraft(d => ({ ...d, dcMaxKW: e.target.value }))}
+                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                  />
+                  <button
+                    onClick={handleAddVehicle}
+                    className="btn-primary"
+                    disabled={!vehDraft.name.trim() || !vehDraft.batteryKWh || !vehDraft.consumptionKWh100}
+                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
+                  >
+                    <Plus size={14} /> Hinzufügen
+                  </button>
+                </div>
+
+                <div>
+                  <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Battery size={14} /> Sicherheitsreserve: <strong>{safetyKm} km</strong>
+                  </label>
+                  <input type="range" min={0} max={80} step={5} value={safetyKm} onChange={(e) => setSafetyKm(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    Kilometer-Puffer, der bei der Routenberechnung nicht eingerechnet wird.
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -444,6 +572,7 @@ function App() {
             data={routeData}
             setData={setRouteData}
             lastNearMeQuery={nearMe.locationInput}
+            setActiveVehicleId={setActiveVehicleId}
           />
         </div>
         <div style={{ display: activeTab === 'favorites' ? 'block' : 'none', height: '100%' }}>
