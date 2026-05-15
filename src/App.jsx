@@ -4,6 +4,7 @@ import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
 import FavoritesView from './components/FavoritesView';
 import AddressAutocomplete from './components/AddressAutocomplete';
+import TermsModal from './components/TermsModal';
 
 const CONNECTOR_TYPES = ['CCS (Type 2)', 'Type 2', 'CHAdeMO', 'Tesla (Type 2)', 'Tesla Supercharger', 'Type 1', 'Schuko'];
 
@@ -38,6 +39,7 @@ function App() {
 
   // Settings modal
   const [showSettings, setShowSettings] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [ocmApiKey, setOcmApiKey] = useState(() => localStorage.getItem('ocm_api_key') || '');
 
@@ -233,8 +235,8 @@ function App() {
 
       {/* Settings Modal */}
       {showSettings && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', position: 'relative' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 0 }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', maxHeight: 'calc(100vh - env(safe-area-inset-top, 0px))', overflowY: 'auto', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))', position: 'relative', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: 'var(--bg-secondary)' }}>
             <button className="btn-icon" onClick={() => setShowSettings(false)} style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
               <X size={20} />
             </button>
@@ -503,10 +505,19 @@ function App() {
               <button className="btn-secondary" onClick={handleResetData} style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', color: 'var(--accent-danger)' }}>
                 <RotateCcw size={16} /> Alle Daten zurücksetzen
               </button>
+
+              <button
+                onClick={() => setShowTerms(true)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem', padding: '0.25rem', textAlign: 'center' }}
+              >
+                Info, Datenquellen & Datenschutz
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
 
       {/* Header */}
       <header className="glass-panel" style={{ borderRadius: 0, padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>

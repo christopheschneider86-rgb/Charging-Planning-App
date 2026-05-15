@@ -266,3 +266,27 @@ select.input-field option {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Prevent iOS Safari from zooming into inputs on focus */
+input.input-field,
+select.input-field,
+textarea.input-field {
+  font-size: 16px;
+}
+
+/* Mobile touch targets and tighter padding */
+@media (max-width: 640px) {
+  .btn-icon { min-width: 44px; min-height: 44px; }
+  .btn-primary, .btn-secondary { min-height: 44px; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.15rem; }
+  h3 { font-size: 1rem; }
+  .glass-panel { border-radius: 14px; }
+}
+
+/* Safe-area on devices with a notch */
+@supports (padding-top: env(safe-area-inset-top)) {
+  header.glass-panel {
+    padding-top: calc(1rem + env(safe-area-inset-top));
+  }
+}
