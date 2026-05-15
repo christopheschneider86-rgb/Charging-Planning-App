@@ -46,6 +46,7 @@ function App() {
   const [preferredConnectors, setPreferredConnectors] = usePersisted('chargeflow_connectors', []);
   const [onlyOperational, setOnlyOperational] = usePersisted('chargeflow_only_operational', true);
   const [autoLocate, setAutoLocate] = usePersisted('chargeflow_auto_locate', false);
+  const [currentRangeKm, setCurrentRangeKm] = usePersisted('chargeflow_range', 0); // 0 = aus
 
   // Favorites
   const [favorites, setFavorites] = usePersisted('chargeflow_favorites', { stations: [], providers: [] });
@@ -130,7 +131,8 @@ function App() {
     minPowerKW,
     preferredConnectors,
     onlyOperational,
-    defaultRadius
+    defaultRadius,
+    currentRangeKm
   };
 
   return (
@@ -152,7 +154,9 @@ function App() {
                 <label className="input-label">OpenChargeMap API-Key</label>
                 <input type="text" className="input-field" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="Dein API-Key…" />
                 <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Kostenlos erhältlich auf openchargemap.org
+                  Kostenlos erhältlich auf{' '}
+                  <a href="https://openchargemap.org/site/profile/applications" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>openchargemap.org</a>
+                  {' '}— Konto erstellen → „My Profile" → „My Apps" → neue App anlegen → API-Key kopieren.
                 </p>
               </div>
 
@@ -186,6 +190,14 @@ function App() {
               <div>
                 <label className="input-label">Mindestleistung: <strong>{minPowerKW === 0 ? 'beliebig' : `${minPowerKW} kW`}</strong></label>
                 <input type="range" min={0} max={350} step={11} value={minPowerKW} onChange={(e) => setMinPowerKW(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
+              </div>
+
+              <div>
+                <label className="input-label">Aktuelle Reichweite: <strong>{currentRangeKm === 0 ? 'aus' : `${currentRangeKm} km`}</strong></label>
+                <input type="range" min={0} max={600} step={10} value={currentRangeKm} onChange={(e) => setCurrentRangeKm(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  Aktiviert den Filter „Nur in Reichweite". Berechnung: Luftlinie × 1.3 als Fahrt-Reserve.
+                </p>
               </div>
 
               <div>

@@ -8,25 +8,20 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Ladestationen - EV Planner',
-        short_name: 'EV Planner',
-        description: 'Ladeplanungs-App für Elektroautos',
-        theme_color: '#0d1117',
-        background_color: '#0d1117',
+        name: 'ChargeFlow — EV Planner',
+        short_name: 'ChargeFlow',
+        description: 'Ladesäulen finden und Routen für E-Autos planen',
+        theme_color: '#0a0a0c',
+        background_color: '#0a0a0c',
         display: 'standalone',
+        start_url: '/Charging-Planning-App/',
+        scope: '/Charging-Planning-App/',
         icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
         ]
       }
     })

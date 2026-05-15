@@ -60,7 +60,7 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
 
   const containerStyle = isFullscreen
     ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: 'var(--bg-primary)' }
-    : { height: '420px', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', zIndex: 0, position: 'relative' };
+    : { height: 'min(65vh, 600px)', minHeight: '320px', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', zIndex: 0, position: 'relative' };
 
   return (
     <div style={containerStyle}>

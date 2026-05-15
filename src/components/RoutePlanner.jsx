@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon } from 'lucide-react';
+import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
@@ -26,6 +26,22 @@ const RoutePlanner = ({
 
   const update = (patch) => setState(prev => ({ ...prev, ...patch }));
 
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (state.filterProvider !== 'All') n++;
+    if (state.filterFavorites) n++;
+    if (state.filterAvailable) n++;
+    if (state.filterInRange) n++;
+    if (state.minDistance) n++;
+    if (state.maxDistance) n++;
+    return n;
+  }, [state]);
+
+  const clearFilters = () => update({
+    filterProvider: 'All', filterFavorites: false, filterAvailable: false,
+    filterInRange: false, minDistance: '', maxDistance: ''
+  });
+
   const providers = useMemo(() => {
     const pSet = new Set((data.stations || []).map(s => s.provider));
     return Array.from(pSet).sort();
@@ -43,6 +59,10 @@ const RoutePlanner = ({
     if (state.filterProvider !== 'All') result = result.filter(s => s.provider === state.filterProvider);
     if (state.filterFavorites) result = result.filter(s => favorites.stations.some(f => (typeof f === 'string' ? f === s.id : f.id === s.id)) || favorites.providers.includes(s.provider));
     if (state.filterAvailable) result = result.filter(s => s.availableSpots > 0);
+    if (state.filterInRange && prefs.currentRangeKm > 0) {
+      const reachable = prefs.currentRangeKm / 1.3;
+      result = result.filter(s => s.distanceFromStart <= reachable);
+    }
 
     if (prefs.minPowerKW > 0) result = result.filter(s => (s.powerKW || 0) >= prefs.minPowerKW);
     if (prefs.onlyOperational) result = result.filter(s => s.isOperational !== false);
@@ -234,6 +254,11 @@ const RoutePlanner = ({
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <SlidersHorizontal size={18} color="var(--accent-primary)" />
                 <span style={{ fontWeight: 600 }}>Filter & Ansicht</span>
+                {activeFilterCount > 0 && (
+                  <button onClick={clearFilters} className="badge badge-power" style={{ border: 'none', cursor: 'pointer' }} title="Filter zurücksetzen">
+                    {activeFilterCount} aktiv ✕
+                  </button>
+                )}
               </div>
               <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 }}>
                 <button onClick={() => update({ viewMode: 'list' })} style={{ background: state.viewMode === 'list' ? 'var(--accent-primary)' : 'transparent', color: state.viewMode === 'list' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: 6, cursor: 'pointer' }}><List size={16} /></button>
@@ -273,6 +298,12 @@ const RoutePlanner = ({
                 <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
                 Nur Favoriten
               </label>
+              {prefs.currentRangeKm > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--accent-success)' }} title={`Filtert auf ~${Math.round(prefs.currentRangeKm/1.3)} km Luftlinie ab Start`}>
+                  <input type="checkbox" checked={!!state.filterInRange} onChange={(e) => update({ filterInRange: e.target.checked })} style={{ accentColor: 'var(--accent-success)', width: 16, height: 16 }} />
+                  <BatteryCharging size={14} /> In Reichweite ({prefs.currentRangeKm} km)
+                </label>
+              )}
             </div>
           </div>
 
