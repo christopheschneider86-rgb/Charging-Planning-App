@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Heart, Zap, MapPin, Euro, X, Copy, Check, Info, ExternalLink } from 'lucide-react';
+import { Heart, Zap, MapPin, Euro, X, Copy, Check, Info, ExternalLink, RefreshCw, Plug, Activity, CalendarClock, Navigation } from 'lucide-react';
+import { fetchStationById } from '../services/api';
 
-const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggleFavorite, toggleProviderFavorite }) => {
+const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggleFavorite, toggleProviderFavorite, apiKey, onRefreshed }) => {
   const [copied, setCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(null);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(station.address);
@@ -10,53 +13,58 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleRefresh = async () => {
+    if (!apiKey || !station.id) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const fresh = await fetchStationById(station.id, apiKey);
+      if (fresh && onRefreshed) onRefreshed(fresh);
+      else if (!fresh) setRefreshError('Station nicht mehr bei OCM gefunden.');
+    } catch (e) {
+      setRefreshError(e.message === 'INVALID_API_KEY' ? 'API-Key ungültig.' : 'Abgleich fehlgeschlagen.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const navUrl = station.lat && station.lng
+    ? `https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`
+    : null;
+
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-      zIndex: 1000
-    }}>
-      <div className="glass-panel animate-fade-in" style={{
-        backgroundColor: 'var(--bg-secondary)',
-        borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
-        padding: '0', maxHeight: '90vh', overflowY: 'auto',
-        position: 'relative'
-      }}>
-        <button 
-          onClick={onClose}
-          className="btn-icon"
-          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'var(--bg-tertiary)' }}
-        >
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 1000 }}>
+      <div className="glass-panel animate-fade-in" style={{ backgroundColor: 'var(--bg-secondary)', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: 0, maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+        <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'var(--bg-tertiary)' }}>
           <X size={20} />
         </button>
 
         <div style={{ padding: '1.5rem', paddingTop: '3rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <h2 style={{ margin: '0 0 0.5rem 0' }}>{station.name}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Anbieter: {station.providerUrl ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  Anbieter:{' '}
+                  {station.providerUrl ? (
                     <a href={station.providerUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
                       {station.provider} <ExternalLink size={12} />
                     </a>
-                  ) : (
-                    station.provider
-                  )}</span>
-                <button 
-                  onClick={toggleProviderFavorite}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                >
-                  <Heart size={14} fill={isProviderFavorite ? "var(--accent-danger)" : "transparent"} color={isProviderFavorite ? "var(--accent-danger)" : "var(--text-secondary)"} />
+                  ) : station.provider}
+                </span>
+                <button onClick={toggleProviderFavorite} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <Heart size={14} fill={isProviderFavorite ? 'var(--accent-danger)' : 'transparent'} color={isProviderFavorite ? 'var(--accent-danger)' : 'var(--text-secondary)'} />
                 </button>
               </div>
+              {station.statusTitle && (
+                <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Activity size={12} color={station.isOperational ? 'var(--accent-success)' : 'var(--accent-warning)'} />
+                  <span style={{ fontSize: '0.75rem', color: station.isOperational ? 'var(--accent-success)' : 'var(--accent-warning)' }}>{station.statusTitle}</span>
+                </div>
+              )}
             </div>
-            <button 
-              onClick={toggleFavorite}
-              className="btn-icon"
-              style={{ border: '1px solid var(--border-color)' }}
-            >
-              <Heart size={20} fill={isFavorite ? "var(--accent-danger)" : "transparent"} color={isFavorite ? "var(--accent-danger)" : "var(--text-secondary)"} />
+            <button onClick={toggleFavorite} className="btn-icon" style={{ border: '1px solid var(--border-color)' }}>
+              <Heart size={20} fill={isFavorite ? 'var(--accent-danger)' : 'transparent'} color={isFavorite ? 'var(--accent-danger)' : 'var(--text-secondary)'} />
             </button>
           </div>
 
@@ -76,7 +84,7 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
             <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Verfügbarkeit</span>
               <span style={{ fontWeight: 600, color: station.availableSpots > 0 ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
-                {station.availableSpots}/{station.totalSpots} Spots frei
+                {station.availableSpots}/{station.totalSpots} Spots
               </span>
             </div>
             <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -87,29 +95,76 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
             </div>
           </div>
 
+          {station.connectors && station.connectors.length > 0 && (
+            <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plug size={18} color="var(--accent-primary)" /> Anschlüsse ({station.connectors.length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {station.connectors.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'var(--bg-primary)', borderRadius: 8, fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 600 }}>{c.type}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                        {[c.current, c.amps ? `${c.amps}A` : null, c.voltage ? `${c.voltage}V` : null].filter(Boolean).join(' · ') || '—'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="badge badge-power">{c.powerKW || 'k.A.'}{c.powerKW ? ' kW' : ''}</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>×{c.quantity}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Info size={18} color="var(--accent-primary)" /> Bedingungen
             </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.6' }}>
-              {station.conditions}
-            </p>
+            {station.usageType && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Nutzung: {station.usageType}</p>}
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.6 }}>{station.conditions}</p>
+            {station.accessComments && (
+              <p style={{ marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{station.accessComments}</p>
+            )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
             <label className="input-label">Adresse</label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <div className="input-field" style={{ flex: 1, color: 'var(--text-secondary)' }}>
-                {station.address}
-              </div>
-              <button className="btn-primary" onClick={handleCopy} style={{ padding: '0.75rem' }}>
+              <div className="input-field" style={{ flex: 1, color: 'var(--text-secondary)' }}>{station.address}</div>
+              <button className="btn-secondary" onClick={handleCopy} style={{ padding: '0.75rem' }} title="Adresse kopieren">
                 {copied ? <Check size={20} /> : <Copy size={20} />}
               </button>
+              {navUrl && (
+                <a className="btn-primary" href={navUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '0.75rem', textDecoration: 'none' }} title="Navigation starten">
+                  <Navigation size={20} />
+                </a>
+              )}
             </div>
           </div>
-          
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              {station.dataProvider && <span>Quelle: {station.dataProvider}</span>}
+              {station.dateLastVerified && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <CalendarClock size={10} /> Verifiziert: {new Date(station.dateLastVerified).toLocaleDateString('de-DE')}
+                </span>
+              )}
+              {station.ocmUrl && <a href={station.ocmUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>Auf OpenChargeMap öffnen</a>}
+            </div>
+            <button className="btn-secondary" onClick={handleRefresh} disabled={refreshing || !apiKey} style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <RefreshCw size={14} className={refreshing ? 'spin' : ''} /> {refreshing ? 'Lädt…' : 'Mit OCM abgleichen'}
+            </button>
+          </div>
+          {refreshError && (
+            <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--accent-danger)' }}>{refreshError}</p>
+          )}
         </div>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } .spin { animation: spin 1s linear infinite; }`}</style>
     </div>
   );
 };

@@ -1,14 +1,13 @@
 // Geocoding using free OpenStreetMap Nominatim API
+const NOMINATIM_HEADERS = {
+  'Accept-Language': 'de-DE,de;q=0.9'
+};
+
 export const geocodeAddress = async (address) => {
+  if (!address || !address.trim()) return null;
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
-    const response = await fetch(url, {
-      headers: {
-        'Accept-Language': 'de-DE,de;q=0.9',
-        // Nominatim requires a User-Agent
-        'User-Agent': 'LadestationenPWA/1.0 (evplanner@example.com)'
-      }
-    });
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=de,at,ch,fr,nl,be,lu,dk,pl,cz&addressdetails=1`;
+    const response = await fetch(url, { headers: NOMINATIM_HEADERS });
     const data = await response.json();
     if (data && data.length > 0) {
       return {
@@ -24,76 +23,194 @@ export const geocodeAddress = async (address) => {
   }
 };
 
-// Fetch from OpenChargeMap
-export const fetchStations = async (lat, lng, apiKey, distanceKm = 10) => {
-  if (!apiKey) {
-    throw new Error('NO_API_KEY');
-  }
-
+// Returns up to 3 suggestion candidates for the autocomplete dropdown
+export const geocodeSuggestions = async (query, limit = 3) => {
+  if (!query || query.trim().length < 3) return [];
   try {
-    const url = `https://api.openchargemap.io/v3/poi/?output=json&latitude=${lat}&longitude=${lng}&distance=${distanceKm}&maxresults=50`;
-    const response = await fetch(url, {
-      headers: {
-        'x-api-key': apiKey
-      }
-    });
-    
-    if (response.status === 403 || response.status === 401) {
-      throw new Error('INVALID_API_KEY');
-    }
-    
-    if (!response.ok) {
-      throw new Error('API_ERROR');
-    }
-
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=${limit}&countrycodes=de,at,ch,fr,nl,be,lu,dk,pl,cz&addressdetails=1`;
+    const response = await fetch(url, { headers: NOMINATIM_HEADERS });
     const data = await response.json();
-    
-    // Map OCM data to our internal Station model
+    if (!Array.isArray(data)) return [];
     return data.map(item => {
-      // Determine max power
-      let maxPower = 0;
-      if (item.Connections && item.Connections.length > 0) {
-        maxPower = Math.max(...item.Connections.map(c => c.PowerKW || 0));
-      }
-
-      // Format provider name and url
-      let provider = 'Unbekannt';
-      let providerUrl = null;
-      if (item.OperatorInfo) {
-        if (item.OperatorInfo.Title) provider = item.OperatorInfo.Title;
-        if (item.OperatorInfo.WebsiteURL) providerUrl = item.OperatorInfo.WebsiteURL;
-      }
-
-      // Address
-      const addrInfo = item.AddressInfo || {};
-      const address = `${addrInfo.AddressLine1 || ''}, ${addrInfo.Postcode || ''} ${addrInfo.Town || ''}`.trim().replace(/^,|,$/g, '');
-
-      // Fake availability for now as OCM live status is spotty without deep integration
-      const isAvailable = item.StatusType ? item.StatusType.IsOperational : true;
-      const totalSpots = item.NumberOfPoints || 2;
-      const availableSpots = isAvailable ? Math.floor(Math.random() * totalSpots) + 1 : 0;
-
+      const addr = item.address || {};
+      const street = [addr.road, addr.house_number].filter(Boolean).join(' ');
+      const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
+      const country = addr.country || '';
+      const label = [street, [addr.postcode, city].filter(Boolean).join(' '), country]
+        .filter(Boolean)
+        .join(', ') || item.display_name;
       return {
-        id: item.ID.toString(),
-        name: addrInfo.Title || 'Ladestation',
-        provider: provider,
-        providerUrl: providerUrl,
-        power: maxPower > 0 ? `${maxPower}kW` : 'k.A.',
-        price: item.UsageCost ? item.UsageCost : 'k.A.',
-        distance: item.AddressInfo && item.AddressInfo.Distance ? item.AddressInfo.Distance.toFixed(1) : 0,
-        distanceUnit: 'km',
-        address: address,
-        available: isAvailable,
-        totalSpots: totalSpots,
-        availableSpots: availableSpots,
-        conditions: item.GeneralComments || item.UsageCost || 'Keine spezifischen Bedingungen angegeben.',
-        imageUrl: 'https://images.unsplash.com/photo-1593941707882-a5bba14938cb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-        lat: addrInfo.Latitude,
-        lng: addrInfo.Longitude
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon),
+        name: item.display_name,
+        label,
+        type: item.type
       };
     });
   } catch (error) {
+    console.error("Suggest Error:", error);
+    return [];
+  }
+};
+
+// Driving route via public OSRM demo server. Returns array of [lat,lng] points and meta info.
+export const fetchRoute = async (startCoords, destCoords) => {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${startCoords.lng},${startCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&geometries=geojson`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('ROUTE_FAILED');
+    const data = await response.json();
+    if (!data.routes || data.routes.length === 0) throw new Error('ROUTE_FAILED');
+    const route = data.routes[0];
+    const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // [lat,lng]
+    return {
+      coords,
+      distanceKm: route.distance / 1000,
+      durationMin: route.duration / 60
+    };
+  } catch (error) {
+    console.error("Route Error:", error);
+    return null;
+  }
+};
+
+// Pick evenly spaced points along a polyline for station sampling
+const samplePointsAlongRoute = (coords, sampleCount = 5) => {
+  if (!coords || coords.length === 0) return [];
+  if (coords.length <= sampleCount) return coords;
+  const points = [];
+  const step = (coords.length - 1) / (sampleCount - 1);
+  for (let i = 0; i < sampleCount; i++) {
+    points.push(coords[Math.round(i * step)]);
+  }
+  return points;
+};
+
+// Fetch stations along a route by sampling multiple points and merging unique results.
+export const fetchStationsAlongRoute = async (routeCoords, apiKey, corridorKm = 5) => {
+  if (!apiKey) throw new Error('NO_API_KEY');
+  const samples = samplePointsAlongRoute(routeCoords, 5);
+  const all = [];
+  const seen = new Set();
+  for (const [lat, lng] of samples) {
+    try {
+      const stations = await fetchStations(lat, lng, apiKey, corridorKm);
+      for (const s of stations) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          all.push(s);
+        }
+      }
+    } catch (e) {
+      if (e.message === 'INVALID_API_KEY' || e.message === 'NO_API_KEY') throw e;
+    }
+  }
+  return all;
+};
+
+const mapOcmItem = (item) => {
+  let maxPower = 0;
+  const connectorTypes = new Set();
+  const connectors = [];
+  if (item.Connections && item.Connections.length > 0) {
+    for (const c of item.Connections) {
+      if (c.PowerKW && c.PowerKW > maxPower) maxPower = c.PowerKW;
+      if (c.ConnectionType && c.ConnectionType.Title) connectorTypes.add(c.ConnectionType.Title);
+      connectors.push({
+        type: c.ConnectionType ? c.ConnectionType.Title : 'k.A.',
+        powerKW: c.PowerKW || 0,
+        current: c.CurrentType ? c.CurrentType.Title : null,
+        amps: c.Amps || null,
+        voltage: c.Voltage || null,
+        quantity: c.Quantity || 1,
+        status: c.StatusType ? c.StatusType.Title : null
+      });
+    }
+  }
+
+  let provider = 'Unbekannt';
+  let providerUrl = null;
+  if (item.OperatorInfo) {
+    if (item.OperatorInfo.Title) provider = item.OperatorInfo.Title;
+    if (item.OperatorInfo.WebsiteURL) providerUrl = item.OperatorInfo.WebsiteURL;
+  }
+
+  const addrInfo = item.AddressInfo || {};
+  const address = `${addrInfo.AddressLine1 || ''}, ${addrInfo.Postcode || ''} ${addrInfo.Town || ''}`
+    .trim()
+    .replace(/^,|,$/g, '');
+
+  const isOperational = item.StatusType ? item.StatusType.IsOperational : true;
+  const totalSpots = item.NumberOfPoints || (connectors.reduce((s, c) => s + (c.quantity || 1), 0) || 2);
+  // Real-time availability is not reliable in OCM; show operational only.
+  const availableSpots = isOperational ? totalSpots : 0;
+
+  return {
+    id: item.ID.toString(),
+    name: addrInfo.Title || 'Ladestation',
+    provider,
+    providerUrl,
+    power: maxPower > 0 ? `${maxPower}kW` : 'k.A.',
+    powerKW: maxPower,
+    price: item.UsageCost ? item.UsageCost : 'k.A.',
+    distance: addrInfo.Distance ? addrInfo.Distance.toFixed(1) : 0,
+    distanceUnit: 'km',
+    address,
+    available: isOperational,
+    totalSpots,
+    availableSpots,
+    conditions: item.GeneralComments || item.UsageCost || 'Keine spezifischen Bedingungen angegeben.',
+    accessComments: item.AddressInfo ? item.AddressInfo.AccessComments : null,
+    usageType: item.UsageType ? item.UsageType.Title : null,
+    statusTitle: item.StatusType ? item.StatusType.Title : null,
+    isOperational,
+    connectors,
+    connectorTypes: Array.from(connectorTypes),
+    numberOfPoints: item.NumberOfPoints || null,
+    dataProvider: item.DataProvider ? item.DataProvider.Title : null,
+    dateLastVerified: item.DateLastVerified || null,
+    dateLastStatusUpdate: item.DateLastStatusUpdate || null,
+    ocmUrl: `https://map.openchargemap.io/#/details/${item.ID}`,
+    imageUrl: 'https://images.unsplash.com/photo-1593941707882-a5bba14938cb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    lat: addrInfo.Latitude,
+    lng: addrInfo.Longitude
+  };
+};
+
+// Fetch from OpenChargeMap
+export const fetchStations = async (lat, lng, apiKey, distanceKm = 10) => {
+  if (!apiKey) throw new Error('NO_API_KEY');
+
+  try {
+    const url = `https://api.openchargemap.io/v3/poi/?output=json&latitude=${lat}&longitude=${lng}&distance=${distanceKm}&distanceunit=KM&maxresults=80&compact=true&verbose=false`;
+    const response = await fetch(url, {
+      headers: { 'x-api-key': apiKey }
+    });
+
+    if (response.status === 403 || response.status === 401) throw new Error('INVALID_API_KEY');
+    if (!response.ok) throw new Error('API_ERROR');
+
+    const data = await response.json();
+    return data.map(mapOcmItem);
+  } catch (error) {
     console.error("OpenChargeMap Error:", error);
+    throw error;
+  }
+};
+
+// Refresh a single station by ID against OCM (used in favorites for "sync")
+export const fetchStationById = async (id, apiKey) => {
+  if (!apiKey) throw new Error('NO_API_KEY');
+  try {
+    const url = `https://api.openchargemap.io/v3/poi/?output=json&chargepointid=${encodeURIComponent(id)}&maxresults=1&compact=true&verbose=false`;
+    const response = await fetch(url, { headers: { 'x-api-key': apiKey } });
+    if (response.status === 403 || response.status === 401) throw new Error('INVALID_API_KEY');
+    if (!response.ok) throw new Error('API_ERROR');
+    const data = await response.json();
+    if (!data || data.length === 0) return null;
+    return mapOcmItem(data[0]);
+  } catch (error) {
+    console.error("OCM single fetch error:", error);
     throw error;
   }
 };
