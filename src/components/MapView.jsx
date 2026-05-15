@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { Zap, MapPin, Maximize, Minimize } from 'lucide-react';
+import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const MapCenter = ({ center }) => {
@@ -62,6 +62,12 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
     ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: 'var(--bg-primary)' }
     : { height: 'min(65vh, 600px)', minHeight: '320px', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', zIndex: 0, position: 'relative' };
 
+  const handleOpenDetails = (station) => {
+    // Close fullscreen first so the bottom-sheet is not covered.
+    if (isFullscreen) setIsFullscreen(false);
+    onStationSelect(station);
+  };
+
   return (
     <div style={containerStyle}>
       <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -80,18 +86,50 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
 
         {stations.map(station => {
           const isFav = favorites.stations.some(f => (typeof f === 'string' ? f === station.id : f.id === station.id)) || favorites.providers.includes(station.provider);
+          const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`;
           return (
             <Marker
               key={station.id}
               position={[station.lat, station.lng]}
               icon={createCustomIcon(isFav, station.availableSpots > 0)}
-              eventHandlers={{ click: () => onStationSelect(station) }}
             >
-              <Popup>
+              <Popup minWidth={220}>
                 <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{station.name}</div>
-                <div style={{ display: 'flex', gap: 8, color: '#666', fontSize: 12 }}>
+                <div style={{ display: 'flex', gap: 8, color: '#666', fontSize: 12, marginBottom: 6 }}>
                   <span><Zap size={10} style={{ display: 'inline' }} /> {station.power}</span>
-                  <span><MapPin size={10} style={{ display: 'inline' }} /> {station.distance}km</span>
+                  <span><MapPin size={10} style={{ display: 'inline' }} /> {station.distance} km</span>
+                </div>
+                {station.provider && station.provider !== 'Unbekannt' && (
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>{station.provider}</div>
+                )}
+                {station.address && (
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>{station.address}</div>
+                )}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => handleOpenDetails(station)}
+                    style={{ background: '#00d2ff', color: 'white', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <Info size={10} /> Details
+                  </button>
+                  <a
+                    href={navUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ background: '#3a7bd5', color: 'white', textDecoration: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <NavIcon size={10} /> Navi
+                  </a>
+                  {station.providerUrl && (
+                    <a
+                      href={station.providerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ background: '#f1f5f9', color: '#333', textDecoration: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <ExternalLink size={10} /> Anbieter
+                    </a>
+                  )}
                 </div>
               </Popup>
             </Marker>
@@ -107,6 +145,7 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
         .leaflet-container { font-family: var(--font-main); }
         .custom-leaflet-icon, .custom-user-icon { background: transparent; border: none; }
         .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .leaflet-popup-content { margin: 10px 12px; min-width: 200px; }
         @keyframes pulse {
           0% { transform: scale(1); opacity: 0.8; }
           70% { transform: scale(2.5); opacity: 0; }

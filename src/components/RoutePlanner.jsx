@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging } from 'lucide-react';
+import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging, Home, Briefcase, MapPin } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
@@ -189,6 +189,36 @@ const RoutePlanner = ({
             />
           </div>
         </div>
+
+        {prefs.savedPlaces && prefs.savedPlaces.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Schnellauswahl</span>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              {prefs.savedPlaces.map(p => {
+                const Icon = p.id === 'home' ? Home : p.id === 'work' ? Briefcase : MapPin;
+                return (
+                  <div key={p.id} style={{ display: 'flex', gap: 0, alignItems: 'stretch', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)' }}>
+                      <Icon size={12} /> {p.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setStartCoordsCached({ lat: p.lat, lng: p.lng, label: p.label }); update({ start: p.label }); }}
+                      style={{ fontSize: '0.7rem', padding: '0.3rem 0.55rem', background: 'rgba(58,123,213,0.15)', color: 'var(--accent-secondary)', border: 'none', borderLeft: '1px solid var(--border-color)', cursor: 'pointer' }}
+                      title="Als Start setzen"
+                    >Start</button>
+                    <button
+                      type="button"
+                      onClick={() => { setDestCoordsCached({ lat: p.lat, lng: p.lng, label: p.label }); update({ destination: p.label }); }}
+                      style={{ fontSize: '0.7rem', padding: '0.3rem 0.55rem', background: 'rgba(0,210,255,0.15)', color: 'var(--accent-primary)', border: 'none', borderLeft: '1px solid var(--border-color)', cursor: 'pointer' }}
+                      title="Als Ziel setzen"
+                    >Ziel</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Korridor entlang der Route:</span>

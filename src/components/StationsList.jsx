@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { SlidersHorizontal, Navigation, Search, AlertCircle, List, Map, Route, RefreshCw, ExternalLink, BatteryCharging } from 'lucide-react';
+import { SlidersHorizontal, Navigation, Search, AlertCircle, List, Map, Route, RefreshCw, ExternalLink, BatteryCharging, Home, Briefcase, MapPin } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
@@ -171,6 +171,26 @@ const StationsList = ({
               <Navigation size={18} />
             </button>
           </div>
+
+          {prefs.savedPlaces && prefs.savedPlaces.length > 0 && (
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              {prefs.savedPlaces.map(p => {
+                const Icon = p.id === 'home' ? Home : p.id === 'work' ? Briefcase : MapPin;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => { update({ locationInput: p.label }); loadStationsForLocation(p.lat, p.lng, p.label); }}
+                    className="btn-secondary"
+                    style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    title={p.label}
+                  >
+                    <Icon size={12} /> {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {state.searchedLocationName && (
             <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Aktuell: {state.searchedLocationName.split(',')[0]}</span>

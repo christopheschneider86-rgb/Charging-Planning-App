@@ -33,7 +33,7 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
     : null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 1000 }}>
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 10000 }}>
       <div className="glass-panel animate-fade-in" style={{ backgroundColor: 'var(--bg-secondary)', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: 0, maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
         <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'var(--bg-tertiary)' }}>
           <X size={20} />

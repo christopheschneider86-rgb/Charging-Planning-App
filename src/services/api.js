@@ -6,15 +6,10 @@ const NOMINATIM_HEADERS = {
 export const geocodeAddress = async (address) => {
   if (!address || !address.trim()) return null;
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=de,at,ch,fr,nl,be,lu,dk,pl,cz&addressdetails=1`;
-    const response = await fetch(url, { headers: NOMINATIM_HEADERS });
-    const data = await response.json();
-    if (data && data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-        name: data[0].display_name
-      };
+    const results = await geocodeSuggestions(address, 1);
+    if (results.length > 0) {
+      const r = results[0];
+      return { lat: r.lat, lng: r.lng, name: r.label };
     }
     return null;
   } catch (error) {
@@ -24,28 +19,58 @@ export const geocodeAddress = async (address) => {
 };
 
 // Returns up to 3 suggestion candidates for the autocomplete dropdown
-export const geocodeSuggestions = async (query, limit = 3) => {
-  if (!query || query.trim().length < 3) return [];
+const mapNominatim = (item) => {
+  const addr = item.address || {};
+  const street = [addr.road, addr.house_number].filter(Boolean).join(' ');
+  const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
+  const country = addr.country || '';
+  // Prefer a friendly POI name if it exists (e.g. shopping center, attraction)
+  const poi = item.namedetails?.name || addr.attraction || addr.shop || addr.building || addr.tourism || addr.amenity;
+  const subtitle = [street, [addr.postcode, city].filter(Boolean).join(' '), country].filter(Boolean).join(', ');
+  const label = poi ? `${poi}${subtitle ? ' — ' + subtitle : ''}` : (subtitle || item.display_name);
+  return {
+    lat: parseFloat(item.lat),
+    lng: parseFloat(item.lon),
+    name: item.display_name,
+    label,
+    title: poi || street || city || item.display_name,
+    subtitle: poi ? subtitle : (street ? [addr.postcode, city].filter(Boolean).join(' ') : country),
+    type: item.type,
+    category: item.class
+  };
+};
+
+const nominatimQuery = async (query, limit, withCountryBias) => {
+  const params = new URLSearchParams({
+    format: 'json',
+    q: query,
+    limit: String(limit),
+    addressdetails: '1',
+    namedetails: '1'
+  });
+  if (withCountryBias) params.set('countrycodes', 'de,at,ch,fr,nl,be,lu,dk,pl,cz');
+  const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+  const response = await fetch(url, { headers: NOMINATIM_HEADERS });
+  const data = await response.json();
+  return Array.isArray(data) ? data.map(mapNominatim) : [];
+};
+
+export const geocodeSuggestions = async (query, limit = 5) => {
+  if (!query || query.trim().length < 2) return [];
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=${limit}&countrycodes=de,at,ch,fr,nl,be,lu,dk,pl,cz&addressdetails=1`;
-    const response = await fetch(url, { headers: NOMINATIM_HEADERS });
-    const data = await response.json();
-    if (!Array.isArray(data)) return [];
-    return data.map(item => {
-      const addr = item.address || {};
-      const street = [addr.road, addr.house_number].filter(Boolean).join(' ');
-      const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
-      const country = addr.country || '';
-      const label = [street, [addr.postcode, city].filter(Boolean).join(' '), country]
-        .filter(Boolean)
-        .join(', ') || item.display_name;
-      return {
-        lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon),
-        name: item.display_name,
-        label,
-        type: item.type
-      };
+    // First: country-biased — addresses and local POIs
+    let results = await nominatimQuery(query, limit, true);
+    // Fallback: if we got nothing, retry without country bias (helps for unique POI names like "Fashion Place")
+    if (results.length === 0) {
+      results = await nominatimQuery(query, limit, false);
+    }
+    // Dedupe by lat/lng
+    const seen = new Set();
+    return results.filter(r => {
+      const key = `${r.lat.toFixed(4)},${r.lng.toFixed(4)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   } catch (error) {
     console.error("Suggest Error:", error);
@@ -170,7 +195,7 @@ const mapOcmItem = (item) => {
     dataProvider: item.DataProvider ? item.DataProvider.Title : null,
     dateLastVerified: item.DateLastVerified || null,
     dateLastStatusUpdate: item.DateLastStatusUpdate || null,
-    ocmUrl: `https://map.openchargemap.io/#/details/${item.ID}`,
+    ocmUrl: `https://openchargemap.org/site/poi/details/${item.ID}`,
     imageUrl: 'https://images.unsplash.com/photo-1593941707882-a5bba14938cb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     lat: addrInfo.Latitude,
     lng: addrInfo.Longitude
@@ -182,7 +207,7 @@ export const fetchStations = async (lat, lng, apiKey, distanceKm = 10) => {
   if (!apiKey) throw new Error('NO_API_KEY');
 
   try {
-    const url = `https://api.openchargemap.io/v3/poi/?output=json&latitude=${lat}&longitude=${lng}&distance=${distanceKm}&distanceunit=KM&maxresults=80&compact=true&verbose=false`;
+    const url = `https://api.openchargemap.io/v3/poi/?output=json&latitude=${lat}&longitude=${lng}&distance=${distanceKm}&distanceunit=KM&maxresults=80&compact=false&verbose=false&includecomments=false`;
     const response = await fetch(url, {
       headers: { 'x-api-key': apiKey }
     });
@@ -202,7 +227,7 @@ export const fetchStations = async (lat, lng, apiKey, distanceKm = 10) => {
 export const fetchStationById = async (id, apiKey) => {
   if (!apiKey) throw new Error('NO_API_KEY');
   try {
-    const url = `https://api.openchargemap.io/v3/poi/?output=json&chargepointid=${encodeURIComponent(id)}&maxresults=1&compact=true&verbose=false`;
+    const url = `https://api.openchargemap.io/v3/poi/?output=json&chargepointid=${encodeURIComponent(id)}&maxresults=1&compact=false&verbose=false`;
     const response = await fetch(url, { headers: { 'x-api-key': apiKey } });
     if (response.status === 403 || response.status === 401) throw new Error('INVALID_API_KEY');
     if (!response.ok) throw new Error('API_ERROR');

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import { geocodeSuggestions } from '../services/api';
 
 const AddressAutocomplete = ({
@@ -13,7 +13,8 @@ const AddressAutocomplete = ({
   leftIcon,
   rightSlot,
   inputClassName = 'input-field',
-  containerStyle
+  containerStyle,
+  maxSuggestions = 5
 }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
@@ -34,13 +35,13 @@ const AddressAutocomplete = ({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = (value || '').trim();
-    if (q.length < 3 || q === lastQueryRef.current) {
+    if (q.length < 2 || q === lastQueryRef.current) {
       setSuggestions([]);
       return;
     }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
-      const results = await geocodeSuggestions(q, 3);
+      const results = await geocodeSuggestions(q, maxSuggestions);
       setSuggestions(results);
       setLoading(false);
       if (document.activeElement === wrapperRef.current?.querySelector('input')) {
@@ -48,7 +49,7 @@ const AddressAutocomplete = ({
       }
     }, 300);
     return () => clearTimeout(debounceRef.current);
-  }, [value]);
+  }, [value, maxSuggestions]);
 
   const pick = (s) => {
     lastQueryRef.current = s.label;
@@ -101,15 +102,33 @@ const AddressAutocomplete = ({
           className="glass-panel"
           style={{
             position: 'absolute',
-            top: 'calc(100% + 4px)',
+            top: 'calc(100% + 6px)',
             left: 0,
             right: 0,
-            zIndex: 50,
-            padding: '0.25rem',
+            zIndex: 60,
+            padding: '0.35rem',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            gap: '0.15rem',
+            maxHeight: '60vh',
+            overflowY: 'auto',
+            backgroundColor: 'var(--bg-secondary)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.4)'
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.25rem' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+              {suggestions.length} Vorschl{suggestions.length === 1 ? 'ag' : 'äge'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}
+              title="Schließen"
+            >
+              <X size={14} />
+            </button>
+          </div>
           {suggestions.map((s, i) => (
             <button
               key={`${s.lat}-${s.lng}-${i}`}
@@ -117,22 +136,31 @@ const AddressAutocomplete = ({
               onClick={() => pick(s)}
               onMouseEnter={() => setHighlight(i)}
               style={{
-                background: i === highlight ? 'rgba(0,210,255,0.1)' : 'transparent',
-                border: 'none',
+                background: i === highlight ? 'rgba(0,210,255,0.12)' : 'transparent',
+                border: '1px solid transparent',
+                borderColor: i === highlight ? 'rgba(0,210,255,0.3)' : 'transparent',
                 color: 'var(--text-primary)',
-                padding: '0.625rem 0.75rem',
+                padding: '0.7rem 0.75rem',
                 textAlign: 'left',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'flex-start',
-                gap: '0.5rem',
+                gap: '0.6rem',
                 fontFamily: 'inherit',
-                fontSize: '0.875rem'
+                fontSize: '0.9rem',
+                lineHeight: 1.3
               }}
             >
-              <MapPin size={14} color="var(--accent-primary)" style={{ marginTop: 2, flexShrink: 0 }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+              <MapPin size={16} color="var(--accent-primary)" style={{ marginTop: 2, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.label}</div>
+                {s.subtitle && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                    {s.subtitle}
+                  </div>
+                )}
+              </div>
             </button>
           ))}
         </div>

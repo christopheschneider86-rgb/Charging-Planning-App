@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw } from 'lucide-react';
+import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus } from 'lucide-react';
 import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
 import FavoritesView from './components/FavoritesView';
+import AddressAutocomplete from './components/AddressAutocomplete';
 
 const CONNECTOR_TYPES = ['CCS (Type 2)', 'Type 2', 'CHAdeMO', 'Tesla (Type 2)', 'Tesla Supercharger', 'Type 1', 'Schuko'];
 
@@ -47,6 +48,17 @@ function App() {
   const [onlyOperational, setOnlyOperational] = usePersisted('chargeflow_only_operational', true);
   const [autoLocate, setAutoLocate] = usePersisted('chargeflow_auto_locate', false);
   const [currentRangeKm, setCurrentRangeKm] = usePersisted('chargeflow_range', 0); // 0 = aus
+
+  // Saved places (Home, Work, custom)
+  const [savedPlaces, setSavedPlaces] = usePersisted('chargeflow_places', []);
+
+  const upsertPlace = (place) => {
+    setSavedPlaces(prev => {
+      const others = prev.filter(p => p.id !== place.id);
+      return [...others, place];
+    });
+  };
+  const removePlace = (id) => setSavedPlaces(prev => prev.filter(p => p.id !== id));
 
   // Favorites
   const [favorites, setFavorites] = usePersisted('chargeflow_favorites', { stations: [], providers: [] });
@@ -117,12 +129,46 @@ function App() {
     setShowSettings(false);
   };
 
+  // New-place draft fields (used inside settings)
+  const [newPlaceName, setNewPlaceName] = useState('');
+  const [newPlaceAddr, setNewPlaceAddr] = useState('');
+
+  const saveHomeOrWork = (kind, picked) => {
+    upsertPlace({
+      id: kind,
+      type: kind,
+      name: kind === 'home' ? 'Zuhause' : 'Arbeit',
+      label: picked.label,
+      lat: picked.lat,
+      lng: picked.lng
+    });
+  };
+
+  const addCustomPlace = (picked) => {
+    if (!newPlaceName.trim()) return;
+    upsertPlace({
+      id: `place-${Date.now()}`,
+      type: 'custom',
+      name: newPlaceName.trim(),
+      label: picked.label,
+      lat: picked.lat,
+      lng: picked.lng
+    });
+    setNewPlaceName('');
+    setNewPlaceAddr('');
+  };
+
+  const home = savedPlaces.find(p => p.id === 'home');
+  const work = savedPlaces.find(p => p.id === 'work');
+  const customPlaces = savedPlaces.filter(p => p.type === 'custom');
+
   const handleResetData = () => {
     if (!window.confirm('Alle Suchen, Favoriten und Einstellungen zurücksetzen?')) return;
     [
       'chargeflow_favorites', 'chargeflow_nearme', 'chargeflow_route',
       'chargeflow_radius', 'chargeflow_minpower', 'chargeflow_connectors',
-      'chargeflow_only_operational', 'chargeflow_auto_locate', 'chargeflow_tab'
+      'chargeflow_only_operational', 'chargeflow_auto_locate', 'chargeflow_tab',
+      'chargeflow_range', 'chargeflow_places'
     ].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   };
@@ -132,7 +178,8 @@ function App() {
     preferredConnectors,
     onlyOperational,
     defaultRadius,
-    currentRangeKm
+    currentRangeKm,
+    savedPlaces
   };
 
   return (
@@ -223,6 +270,92 @@ function App() {
                   <input type="checkbox" checked={autoLocate} onChange={(e) => setAutoLocate(e.target.checked)} style={{ accentColor: 'var(--accent-primary)', width: 16, height: 16 }} />
                   Beim Start automatisch meinen Standort verwenden
                 </label>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                  <Home size={14} /> Meine Orte
+                </label>
+
+                {/* Home slot */}
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Home size={12} /> Zuhause
+                  </div>
+                  {home ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                      <span style={{ flex: 1, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{home.label}</span>
+                      <button onClick={() => removePlace('home')} className="btn-icon" style={{ width: 28, height: 28 }} title="Entfernen"><Trash2 size={14} /></button>
+                    </div>
+                  ) : (
+                    <AddressAutocomplete
+                      value=""
+                      onChange={() => {}}
+                      onSelect={(p) => saveHomeOrWork('home', p)}
+                      placeholder="Adresse für Zuhause…"
+                    />
+                  )}
+                </div>
+
+                {/* Work slot */}
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Briefcase size={12} /> Arbeit
+                  </div>
+                  {work ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                      <span style={{ flex: 1, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work.label}</span>
+                      <button onClick={() => removePlace('work')} className="btn-icon" style={{ width: 28, height: 28 }} title="Entfernen"><Trash2 size={14} /></button>
+                    </div>
+                  ) : (
+                    <AddressAutocomplete
+                      value=""
+                      onChange={() => {}}
+                      onSelect={(p) => saveHomeOrWork('work', p)}
+                      placeholder="Adresse für Arbeit…"
+                    />
+                  )}
+                </div>
+
+                {/* Custom places */}
+                {customPlaces.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Weitere Orte</div>
+                    {customPlaces.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                        <MapPin size={14} color="var(--accent-primary)" />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{p.name}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</div>
+                        </div>
+                        <button onClick={() => removePlace(p.id)} className="btn-icon" style={{ width: 28, height: 28 }} title="Entfernen"><Trash2 size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add custom */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(0,210,255,0.04)', padding: '0.6rem', borderRadius: 10, border: '1px dashed var(--border-color)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Plus size={12} /> Eigenen Ort hinzufügen
+                  </div>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Name (z.B. 'Schwiegereltern')"
+                    value={newPlaceName}
+                    onChange={(e) => setNewPlaceName(e.target.value)}
+                    style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                  />
+                  <AddressAutocomplete
+                    value={newPlaceAddr}
+                    onChange={setNewPlaceAddr}
+                    onSelect={(p) => { addCustomPlace(p); }}
+                    placeholder="Adresse suchen…"
+                    disabled={!newPlaceName.trim()}
+                  />
+                  {!newPlaceName.trim() && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Erst Name eingeben, dann Adresse suchen.</span>}
+                </div>
               </div>
 
               <button className="btn-primary" onClick={handleSaveSettings} style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
