@@ -257,6 +257,22 @@ function App() {
         </button>
       </header>
 
+      {/* Top Navigation */}
+      <nav className="glass-panel" style={{ borderRadius: 0, padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-around', zIndex: 10 }}>
+        <button onClick={() => setActiveTab('nearMe')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem', color: activeTab === 'nearMe' ? 'var(--accent-primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem 0.5rem' }}>
+          <MapPin size={22} strokeWidth={activeTab === 'nearMe' ? 2.5 : 2} />
+          <span style={{ fontSize: '0.7rem', fontWeight: activeTab === 'nearMe' ? 600 : 400 }}>Meine Nähe</span>
+        </button>
+        <button onClick={() => setActiveTab('route')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem', color: activeTab === 'route' ? 'var(--accent-primary)' : 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem 0.5rem' }}>
+          <Compass size={22} strokeWidth={activeTab === 'route' ? 2.5 : 2} />
+          <span style={{ fontSize: '0.7rem', fontWeight: activeTab === 'route' ? 600 : 400 }}>Routenplaner</span>
+        </button>
+        <button onClick={() => setActiveTab('favorites')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem', color: activeTab === 'favorites' ? 'var(--accent-danger)' : 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem 0.5rem' }}>
+          <Heart size={22} strokeWidth={activeTab === 'favorites' ? 2.5 : 2} fill={activeTab === 'favorites' ? 'var(--accent-danger)' : 'transparent'} />
+          <span style={{ fontSize: '0.7rem', fontWeight: activeTab === 'favorites' ? 600 : 400 }}>Favoriten</span>
+        </button>
+      </nav>
+
       {/* Main Content Area */}
       <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         <div style={{ display: activeTab === 'nearMe' ? 'block' : 'none', height: '100%' }}>
@@ -307,22 +323,6 @@ function App() {
           />
         </div>
       </main>
-
-      {/* Bottom Navigation */}
-      <nav className="glass-panel" style={{ borderRadius: 0, padding: '0.75rem 1rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-around', zIndex: 10, paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-        <button onClick={() => setActiveTab('nearMe')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', color: activeTab === 'nearMe' ? 'var(--accent-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>
-          <MapPin size={24} strokeWidth={activeTab === 'nearMe' ? 2.5 : 2} />
-          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'nearMe' ? 600 : 400 }}>Meine Nähe</span>
-        </button>
-        <button onClick={() => setActiveTab('route')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', color: activeTab === 'route' ? 'var(--accent-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>
-          <Compass size={24} strokeWidth={activeTab === 'route' ? 2.5 : 2} />
-          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'route' ? 600 : 400 }}>Routenplaner</span>
-        </button>
-        <button onClick={() => setActiveTab('favorites')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', color: activeTab === 'favorites' ? 'var(--accent-danger)' : 'var(--text-secondary)', cursor: 'pointer' }}>
-          <Heart size={24} strokeWidth={activeTab === 'favorites' ? 2.5 : 2} fill={activeTab === 'favorites' ? 'var(--accent-danger)' : 'transparent'} />
-          <span style={{ fontSize: '0.75rem', fontWeight: activeTab === 'favorites' ? 600 : 400 }}>Favoriten</span>
-        </button>
-      </nav>
     </div>
   );
 }
