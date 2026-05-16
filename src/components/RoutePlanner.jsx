@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, BatteryCharging, Home, Briefcase, MapPin, Car, Battery, BatteryWarning, Save, Bookmark, Trash2 } from 'lucide-react';
+import { Route, ArrowRight, Play, AlertCircle, Navigation, Map, List, SlidersHorizontal, Clock, Zap as ZapIcon, Home, Briefcase, MapPin, Car, Battery, BatteryWarning, Save, Bookmark, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
@@ -44,6 +44,7 @@ const RoutePlanner = ({
   const [destCoordsCached, setDestCoordsCached] = useState(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [routeNameDraft, setRouteNameDraft] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const update = (patch) => setState(prev => ({ ...prev, ...patch }));
 
@@ -467,67 +468,79 @@ const RoutePlanner = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }} className="animate-fade-in">
 
           <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <button
+                onClick={() => setFiltersOpen(o => !o)}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-main)' }}
+                aria-expanded={filtersOpen}
+              >
                 <SlidersHorizontal size={18} color="var(--accent-primary)" />
-                <span style={{ fontWeight: 600 }}>Filter & Ansicht</span>
+                <span style={{ fontWeight: 600 }}>Filter & Sortierung</span>
                 {activeFilterCount > 0 && (
-                  <button onClick={clearFilters} className="badge badge-power" style={{ border: 'none', cursor: 'pointer' }} title="Filter zurücksetzen">
-                    {activeFilterCount} aktiv ✕
-                  </button>
+                  <span className="badge badge-power" style={{ marginLeft: '0.25rem' }}>{activeFilterCount} aktiv</span>
                 )}
-              </div>
+                {filtersOpen ? <ChevronUp size={16} color="var(--text-muted)" style={{ marginLeft: 'auto' }} /> : <ChevronDown size={16} color="var(--text-muted)" style={{ marginLeft: 'auto' }} />}
+              </button>
               <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 }}>
                 <button onClick={() => update({ viewMode: 'list' })} style={{ background: state.viewMode === 'list' ? 'var(--accent-primary)' : 'transparent', color: state.viewMode === 'list' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: 6, cursor: 'pointer' }}><List size={16} /></button>
                 <button onClick={() => update({ viewMode: 'map' })} style={{ background: state.viewMode === 'map' ? 'var(--accent-primary)' : 'transparent', color: state.viewMode === 'map' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: 6, cursor: 'pointer' }}><Map size={16} /></button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <select className="input-field" value={state.sortBy} onChange={(e) => update({ sortBy: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-                <option value="distance">Entfernung vom Start</option>
-                <option value="price">Preis</option>
-                <option value="power">Leistung</option>
-              </select>
-              <select className="input-field" value={state.filterProvider} onChange={(e) => update({ filterProvider: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-                <option value="All">Alle Anbieter</option>
-                {providers.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
+            {filtersOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select className="input-field" value={state.sortBy} onChange={(e) => update({ sortBy: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                    <option value="distance">Entfernung vom Start</option>
+                    <option value="price">Preis</option>
+                    <option value="power">Leistung</option>
+                  </select>
+                  <select className="input-field" value={state.filterProvider} onChange={(e) => update({ filterProvider: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                    <option value="All">Alle Anbieter</option>
+                    {providers.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Ab km</span>
-                <input type="number" min={0} placeholder="0" value={state.minDistance} onChange={(e) => update({ minDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Ab km</span>
+                    <input type="number" min={0} placeholder="0" value={state.minDistance} onChange={(e) => update({ minDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Bis km</span>
+                    <input type="number" min={0} placeholder="∞" value={state.maxDistance} onChange={(e) => update({ maxDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Min. Leistung</span>
+                  <input type="range" min={0} max={350} step={11} value={state.minPowerKW || 0} onChange={(e) => update({ minPowerKW: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
+                  <strong style={{ color: 'var(--accent-primary)', minWidth: 56, textAlign: 'right' }}>{state.minPowerKW > 0 ? `${state.minPowerKW} kW` : 'beliebig'}</strong>
+                </div>
+
+                <ProviderExclude
+                  allProviders={providers}
+                  excluded={state.excludedProviders || []}
+                  onChange={(arr) => update({ excludedProviders: arr })}
+                />
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={state.filterAvailable} onChange={(e) => update({ filterAvailable: e.target.checked })} style={{ accentColor: 'var(--accent-primary)', width: 16, height: 16 }} />
+                    Nur Verfügbare
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
+                    Nur Favoriten
+                  </label>
+                  {activeFilterCount > 0 && (
+                    <button onClick={clearFilters} className="btn-secondary" style={{ marginLeft: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
+                      Zurücksetzen
+                    </button>
+                  )}
+                </div>
               </div>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Bis km</span>
-                <input type="number" min={0} placeholder="∞" value={state.maxDistance} onChange={(e) => update({ maxDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Min. Leistung</span>
-              <input type="range" min={0} max={350} step={11} value={state.minPowerKW || 0} onChange={(e) => update({ minPowerKW: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
-              <strong style={{ color: 'var(--accent-primary)', minWidth: 56, textAlign: 'right' }}>{state.minPowerKW > 0 ? `${state.minPowerKW} kW` : 'beliebig'}</strong>
-            </div>
-
-            <ProviderExclude
-              allProviders={providers}
-              excluded={state.excludedProviders || []}
-              onChange={(arr) => update({ excludedProviders: arr })}
-            />
-
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                <input type="checkbox" checked={state.filterAvailable} onChange={(e) => update({ filterAvailable: e.target.checked })} style={{ accentColor: 'var(--accent-primary)', width: 16, height: 16 }} />
-                Nur Verfügbare
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
-                Nur Favoriten
-              </label>
-            </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

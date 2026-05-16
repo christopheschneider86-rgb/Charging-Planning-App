@@ -87,29 +87,25 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
     );
   };
 
-  const handleSearchArea = () => {
-    if (!mapRef.current || !onSearchArea) return;
-    const c = mapRef.current.getCenter();
-    const b = mapRef.current.getBounds();
-    // Use the diagonal of the bounds as the search radius (km).
-    const ne = b.getNorthEast();
-    const sw = b.getSouthWest();
-    const diagonalKm = ne.distanceTo(sw) / 1000;
-    const radiusKm = Math.max(3, Math.min(50, diagonalKm / 2));
-    onSearchArea(c.lat, c.lng, radiusKm);
-  };
-
-  const handleRefreshTiles = () => {
+  const handleReload = () => {
     if (!mapRef.current) return;
-    // Force a re-fetch of the visible tiles
+    // Always redraw the map / refresh tiles
     mapRef.current.invalidateSize();
     const c = mapRef.current.getCenter();
     const z = mapRef.current.getZoom();
     mapRef.current.setView(c, z, { animate: false });
-    // Trigger tile re-request
     mapRef.current.eachLayer(layer => {
       if (layer.redraw) layer.redraw();
     });
+    // And — if the parent provided a data refetch — refetch stations in this area
+    if (onSearchArea) {
+      const b = mapRef.current.getBounds();
+      const ne = b.getNorthEast();
+      const sw = b.getSouthWest();
+      const diagonalKm = ne.distanceTo(sw) / 1000;
+      const radiusKm = Math.max(3, Math.min(50, diagonalKm / 2));
+      onSearchArea(c.lat, c.lng, radiusKm);
+    }
   };
 
   const containerStyle = isFullscreen
@@ -213,44 +209,15 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
           <Crosshair size={20} />
         </button>
         <button
-          onClick={handleRefreshTiles}
+          onClick={handleReload}
           className="btn-icon"
-          title="Karte neu laden"
-          style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: 'var(--text-primary)' }}
+          title={onSearchArea ? 'Diesen Ausschnitt neu laden' : 'Karte neu laden'}
+          disabled={isLoading}
+          style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: isLoading ? 'var(--text-muted)' : 'var(--text-primary)' }}
         >
-          <RefreshCw size={20} />
+          <RefreshCw size={20} className={isLoading ? 'spin' : ''} />
         </button>
       </div>
-
-      {/* "Search this area" floating button at the top center */}
-      {onSearchArea && (
-        <button
-          onClick={handleSearchArea}
-          disabled={isLoading}
-          className="glass-panel"
-          style={{
-            position: 'absolute',
-            top: '1rem',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 999,
-            padding: '0.5rem 0.85rem',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--accent-primary)',
-            color: 'var(--accent-primary)',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-          }}
-        >
-          <RefreshCw size={14} className={isLoading ? 'spin' : ''} /> Diesen Ausschnitt laden
-        </button>
-      )}
 
       <style>{`
         .leaflet-container { font-family: var(--font-main); }

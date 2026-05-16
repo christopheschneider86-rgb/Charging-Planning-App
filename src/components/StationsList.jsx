@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { SlidersHorizontal, Navigation, Search, AlertCircle, List, Map, Route, RefreshCw, ExternalLink, BatteryCharging, Home, Briefcase, MapPin } from 'lucide-react';
+import { SlidersHorizontal, Navigation, Search, AlertCircle, List, Map, Route, RefreshCw, ExternalLink, Home, Briefcase, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
@@ -15,6 +15,7 @@ const StationsList = ({
   const [selectedStation, setSelectedStation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const autoTriggered = useRef(false);
 
   const update = (patch) => setState(prev => ({ ...prev, ...patch }));
@@ -211,16 +212,19 @@ const StationsList = ({
 
         <div style={{ height: '1px', background: 'var(--border-color)' }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+          <button
+            onClick={() => setFiltersOpen(o => !o)}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-main)' }}
+            aria-expanded={filtersOpen}
+          >
             <SlidersHorizontal size={18} color="var(--accent-primary)" />
-            <span style={{ fontWeight: 600 }}>Filter & Ansicht</span>
+            <span style={{ fontWeight: 600 }}>Filter & Sortierung</span>
             {activeFilterCount > 0 && (
-              <button onClick={clearFilters} className="badge badge-power" style={{ border: 'none', cursor: 'pointer' }} title="Filter zurücksetzen">
-                {activeFilterCount} aktiv ✕
-              </button>
+              <span className="badge badge-power" style={{ marginLeft: '0.25rem' }}>{activeFilterCount} aktiv</span>
             )}
-          </div>
+            {filtersOpen ? <ChevronUp size={16} color="var(--text-muted)" style={{ marginLeft: 'auto' }} /> : <ChevronDown size={16} color="var(--text-muted)" style={{ marginLeft: 'auto' }} />}
+          </button>
           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '2px' }}>
             <button onClick={() => update({ viewMode: 'list' })} style={{ background: state.viewMode === 'list' ? 'var(--accent-primary)' : 'transparent', color: state.viewMode === 'list' ? 'white' : 'var(--text-secondary)', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer' }}>
               <List size={16} />
@@ -231,51 +235,60 @@ const StationsList = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <select className="input-field" value={state.sortBy} onChange={(e) => update({ sortBy: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-            <option value="distance">Entfernung</option>
-            <option value="price">Preis</option>
-            <option value="power">Leistung</option>
-          </select>
-          <select className="input-field" value={state.filterProvider} onChange={(e) => update({ filterProvider: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-            <option value="All">Alle Anbieter</option>
-            {providers.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
+        {filtersOpen && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <select className="input-field" value={state.sortBy} onChange={(e) => update({ sortBy: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                <option value="distance">Entfernung</option>
+                <option value="price">Preis</option>
+                <option value="power">Leistung</option>
+              </select>
+              <select className="input-field" value={state.filterProvider} onChange={(e) => update({ filterProvider: e.target.value })} style={{ flex: '1 1 120px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                <option value="All">Alle Anbieter</option>
+                {providers.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Von km</span>
-            <input type="number" min={0} placeholder="0" value={state.minDistance} onChange={(e) => update({ minDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Von km</span>
+                <input type="number" min={0} placeholder="0" value={state.minDistance} onChange={(e) => update({ minDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
+              </div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Bis km</span>
+                <input type="number" min={0} placeholder="∞" value={state.maxDistance} onChange={(e) => update({ maxDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Min. Leistung</span>
+              <input type="range" min={0} max={350} step={11} value={state.minPowerKW || 0} onChange={(e) => update({ minPowerKW: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
+              <strong style={{ color: 'var(--accent-primary)', minWidth: 56, textAlign: 'right' }}>{state.minPowerKW > 0 ? `${state.minPowerKW} kW` : 'beliebig'}</strong>
+            </div>
+
+            <ProviderExclude
+              allProviders={providers}
+              excluded={state.excludedProviders || []}
+              onChange={(arr) => update({ excludedProviders: arr })}
+            />
+
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={state.filterAvailable} onChange={(e) => update({ filterAvailable: e.target.checked })} style={{ accentColor: 'var(--accent-primary)', width: 16, height: 16 }} />
+                Nur Verfügbare
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
+                Nur Favoriten
+              </label>
+              {activeFilterCount > 0 && (
+                <button onClick={clearFilters} className="btn-secondary" style={{ marginLeft: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
+                  Zurücksetzen
+                </button>
+              )}
+            </div>
           </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Bis km</span>
-            <input type="number" min={0} placeholder="∞" value={state.maxDistance} onChange={(e) => update({ maxDistance: e.target.value })} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.875rem' }} />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-          <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Min. Leistung</span>
-          <input type="range" min={0} max={350} step={11} value={state.minPowerKW || 0} onChange={(e) => update({ minPowerKW: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
-          <strong style={{ color: 'var(--accent-primary)', minWidth: 56, textAlign: 'right' }}>{state.minPowerKW > 0 ? `${state.minPowerKW} kW` : 'beliebig'}</strong>
-        </div>
-
-        <ProviderExclude
-          allProviders={providers}
-          excluded={state.excludedProviders || []}
-          onChange={(arr) => update({ excludedProviders: arr })}
-        />
-
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={state.filterAvailable} onChange={(e) => update({ filterAvailable: e.target.checked })} style={{ accentColor: 'var(--accent-primary)', width: 16, height: 16 }} />
-            Nur Verfügbare
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
-            Nur Favoriten
-          </label>
-        </div>
+        )}
       </div>
 
       {error && (
