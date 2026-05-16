@@ -290,3 +290,17 @@ textarea.input-field {
     padding-top: calc(1rem + env(safe-area-inset-top));
   }
 }
+
+/* Lock background scroll while a modal is open (toggled from App / TermsModal). */
+body.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  /* "top" is set dynamically in JS to restore scroll position afterwards */
+}
+
+/* Contain overscroll inside modal so iOS doesn't drag the page behind it */
+.modal-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}

@@ -6,6 +6,7 @@ import RoutePlanner from './components/RoutePlanner';
 import FavoritesView from './components/FavoritesView';
 import AddressAutocomplete from './components/AddressAutocomplete';
 import TermsModal from './components/TermsModal';
+import { useBodyScrollLock } from './hooks/useBodyScrollLock';
 
 const CONNECTOR_TYPES = ['CCS (Type 2)', 'Type 2', 'CHAdeMO', 'Tesla (Type 2)', 'Tesla Supercharger', 'Type 1', 'Schuko'];
 
@@ -41,6 +42,7 @@ function App() {
   // Settings modal
   const [showSettings, setShowSettings] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  useBodyScrollLock(showSettings || showTerms);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [ocmApiKey, setOcmApiKey] = useState(() => localStorage.getItem('ocm_api_key') || '');
 
@@ -251,16 +253,28 @@ function App() {
       {/* Settings Modal */}
       {showSettings && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 0 }} onClick={() => setShowSettings(false)}>
-          <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px', maxHeight: 'calc(100vh - env(safe-area-inset-top, 0px))', overflowY: 'auto', padding: 0, position: 'relative', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: 'var(--bg-secondary)' }}>
-            <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            className="glass-panel modal-scroll"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '480px',
+              maxHeight: '100dvh',
+              overflowY: 'auto',
+              padding: 0, position: 'relative',
+              borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+              backgroundColor: 'var(--bg-secondary)',
+              display: 'flex', flexDirection: 'column'
+            }}
+          >
+            <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', padding: '1rem 1.5rem', paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem' }}>
                 <Settings size={22} color="var(--accent-primary)" /> Einstellungen
               </h2>
-              <button className="btn-icon" onClick={() => setShowSettings(false)} aria-label="Schließen">
-                <X size={20} />
+              <button className="btn-icon" onClick={() => setShowSettings(false)} aria-label="Schließen" style={{ minWidth: 44, minHeight: 44 }}>
+                <X size={22} />
               </button>
             </div>
-            <div style={{ padding: '1.25rem 1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <div style={{ padding: '1.25rem 1.5rem' }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
@@ -534,6 +548,11 @@ function App() {
                 Info, Datenquellen & Datenschutz
               </button>
             </div>
+            </div>
+            <div style={{ position: 'sticky', bottom: 0, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', padding: '0.75rem 1.5rem', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
+              <button onClick={() => setShowSettings(false)} className="btn-primary" style={{ width: '100%' }}>
+                Fertig
+              </button>
             </div>
           </div>
         </div>

@@ -22,27 +22,28 @@ const TermsModal = ({ onClose }) => {
       onClick={onClose}
     >
       <div
-        className="glass-panel"
+        className="glass-panel modal-scroll"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: '480px',
-          maxHeight: 'calc(100vh - env(safe-area-inset-top, 0px))',
-          overflowY: 'auto', padding: '1.5rem',
-          paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
+          maxHeight: '100dvh',
+          overflowY: 'auto', padding: 0,
           position: 'relative',
           borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
-          backgroundColor: 'var(--bg-secondary)'
+          backgroundColor: 'var(--bg-secondary)',
+          display: 'flex', flexDirection: 'column'
         }}
       >
-        <button onClick={onClose} className="btn-icon" style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
-          <X size={20} />
-        </button>
+        <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', padding: '1rem 1.5rem', paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem' }}>
+            <Shield size={22} color="var(--accent-primary)" /> Info & Datenschutz
+          </h2>
+          <button onClick={onClose} className="btn-icon" aria-label="Schließen" style={{ minWidth: 44, minHeight: 44 }}>
+            <X size={22} />
+          </button>
+        </div>
 
-        <h2 style={{ margin: '0 0 1.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Shield size={22} color="var(--accent-primary)" /> Info & Datenschutz
-        </h2>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <Section icon={<Heart size={16} color="var(--accent-danger)" />} title="Über ChargeFlow">
             ChargeFlow ist eine Open-Source-Planungs-App für E-Auto-Fahrer:innen.
             Lokale Ladesäulensuche, Routenplanung mit echten Straßenwegen,
@@ -131,6 +132,12 @@ const TermsModal = ({ onClose }) => {
             </div>
             <div>Stand: {new Date().toLocaleDateString('de-DE')}</div>
           </div>
+        </div>
+
+        <div style={{ position: 'sticky', bottom: 0, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', padding: '0.75rem 1.5rem', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
+          <button onClick={onClose} className="btn-primary" style={{ width: '100%' }}>
+            Schließen
+          </button>
         </div>
       </div>
     </div>
