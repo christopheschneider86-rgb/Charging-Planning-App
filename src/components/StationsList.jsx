@@ -346,6 +346,14 @@ const StationsList = ({
               onStationSelect={(station) => setSelectedStation(station)}
               mapStyle={mapStyle}
               navApp={navApp}
+              isLoading={isLoading}
+              onLocate={(lat, lng) => {
+                setUserLocation([lat, lng]);
+                loadStationsForLocation(lat, lng, 'Mein Standort');
+              }}
+              onSearchArea={(lat, lng, radiusKm) => {
+                loadStationsForLocation(lat, lng, `Kartenausschnitt (${lat.toFixed(3)}, ${lng.toFixed(3)})`);
+              }}
             />
           )}
         </div>

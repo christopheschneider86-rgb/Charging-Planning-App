@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink } from 'lucide-react';
+import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink, Crosshair, RefreshCw } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { buildNavUrl, navAppLabel } from '../services/nav';
+
+// Bridge component: exposes the map instance up via a ref-callback so the
+// outer toolbar can call setView / getCenter / getBounds.
+const MapHandle = ({ onReady }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    if (onReady) onReady(map);
+  }, [map, onReady]);
+  return null;
+};
 
 const MapCenter = ({ center }) => {
   const map = useMap();
@@ -53,11 +63,54 @@ const createUserIcon = () => {
   return L.divIcon({ html: iconMarkup, className: 'custom-user-icon', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
 };
 
-const MapView = ({ stations, favorites, onStationSelect, center, userLocation, routeLine, mapStyle = 'standard', navApp = 'google' }) => {
+const MapView = ({ stations, favorites, onStationSelect, center, userLocation, routeLine, mapStyle = 'standard', navApp = 'google', onSearchArea, onLocate, isLoading }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef(null);
   const defaultCenter = [51.1657, 10.4515];
   const mapCenter = center || (stations.length > 0 ? [stations[0].lat, stations[0].lng] : defaultCenter);
   const layer = TILE_LAYERS[mapStyle] || TILE_LAYERS.standard;
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        if (mapRef.current) mapRef.current.setView([lat, lng], 14);
+        if (onLocate) onLocate(lat, lng);
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  const handleSearchArea = () => {
+    if (!mapRef.current || !onSearchArea) return;
+    const c = mapRef.current.getCenter();
+    const b = mapRef.current.getBounds();
+    // Use the diagonal of the bounds as the search radius (km).
+    const ne = b.getNorthEast();
+    const sw = b.getSouthWest();
+    const diagonalKm = ne.distanceTo(sw) / 1000;
+    const radiusKm = Math.max(3, Math.min(50, diagonalKm / 2));
+    onSearchArea(c.lat, c.lng, radiusKm);
+  };
+
+  const handleRefreshTiles = () => {
+    if (!mapRef.current) return;
+    // Force a re-fetch of the visible tiles
+    mapRef.current.invalidateSize();
+    const c = mapRef.current.getCenter();
+    const z = mapRef.current.getZoom();
+    mapRef.current.setView(c, z, { animate: false });
+    // Trigger tile re-request
+    mapRef.current.eachLayer(layer => {
+      if (layer.redraw) layer.redraw();
+    });
+  };
 
   const containerStyle = isFullscreen
     ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: 'var(--bg-primary)' }
@@ -72,6 +125,7 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
   return (
     <div style={containerStyle}>
       <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+        <MapHandle onReady={(m) => { mapRef.current = m; }} />
         <TileLayer key={mapStyle} attribution={layer.attribution} url={layer.url} />
         <MapCenter center={mapCenter} />
 
@@ -139,15 +193,72 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
         })}
       </MapContainer>
 
-      <button onClick={() => setIsFullscreen(!isFullscreen)} className="btn-icon" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 1000, backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: 'var(--text-primary)' }}>
-        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-      </button>
+      {/* Map toolbar */}
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className="btn-icon"
+          title={isFullscreen ? 'Vollbild beenden' : 'Vollbild'}
+          style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: 'var(--text-primary)' }}
+        >
+          {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+        </button>
+        <button
+          onClick={handleLocateMe}
+          className="btn-icon"
+          title="Mein Standort"
+          disabled={locating}
+          style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: locating ? 'var(--text-muted)' : 'var(--text-primary)' }}
+        >
+          <Crosshair size={20} />
+        </button>
+        <button
+          onClick={handleRefreshTiles}
+          className="btn-icon"
+          title="Karte neu laden"
+          style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: 'var(--text-primary)' }}
+        >
+          <RefreshCw size={20} />
+        </button>
+      </div>
+
+      {/* "Search this area" floating button at the top center */}
+      {onSearchArea && (
+        <button
+          onClick={handleSearchArea}
+          disabled={isLoading}
+          className="glass-panel"
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 999,
+            padding: '0.5rem 0.85rem',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--accent-primary)',
+            color: 'var(--accent-primary)',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-main)',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}
+        >
+          <RefreshCw size={14} className={isLoading ? 'spin' : ''} /> Diesen Ausschnitt laden
+        </button>
+      )}
 
       <style>{`
         .leaflet-container { font-family: var(--font-main); }
         .custom-leaflet-icon, .custom-user-icon { background: transparent; border: none; }
         .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .leaflet-popup-content { margin: 10px 12px; min-width: 200px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
         @keyframes pulse {
           0% { transform: scale(1); opacity: 0.8; }
           70% { transform: scale(2.5); opacity: 0; }

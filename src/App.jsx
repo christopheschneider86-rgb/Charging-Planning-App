@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery, Navigation as NavIcon, Shield } from 'lucide-react';
+import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery, Navigation as NavIcon, Shield, Mail } from 'lucide-react';
 import { NAV_APPS } from './services/nav';
 import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
@@ -536,6 +536,14 @@ function App() {
               <button className="btn-primary" onClick={handleSaveSettings} style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
                 <Check size={18} /> Speichern
               </button>
+
+              <a
+                href="mailto:christophe.schneider86@googlemail.com?subject=ChargeFlow%20Support%20%2F%20Feedback"
+                className="btn-secondary"
+                style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
+              >
+                <Mail size={16} /> Support / Feedback senden
+              </a>
 
               <button className="btn-secondary" onClick={handleResetData} style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', color: 'var(--accent-danger)' }}>
                 <RotateCcw size={16} /> Alle Daten zurücksetzen

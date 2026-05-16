@@ -195,7 +195,7 @@ const mapOcmItem = (item) => {
     dataProvider: item.DataProvider ? item.DataProvider.Title : null,
     dateLastVerified: item.DateLastVerified || null,
     dateLastStatusUpdate: item.DateLastStatusUpdate || null,
-    ocmUrl: `https://openchargemap.org/site/poi/details/${item.ID}`,
+    ocmUrl: `https://map.openchargemap.io/?id=${item.ID}`,
     imageUrl: 'https://images.unsplash.com/photo-1593941707882-a5bba14938cb?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     lat: addrInfo.Latitude,
     lng: addrInfo.Longitude
