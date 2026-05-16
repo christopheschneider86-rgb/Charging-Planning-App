@@ -34,7 +34,7 @@ const socColor = (soc, safetySoc) => {
 
 const RoutePlanner = ({
   apiKey, favorites, toggleFavorite, toggleProviderFavorite, onOpenSettings,
-  mapStyle, prefs, state, setState, data, setData, setActiveVehicleId,
+  mapStyle, navApp, prefs, state, setState, data, setData, setActiveVehicleId,
   addSavedRoute, removeSavedRoute
 }) => {
   const [isPlanning, setIsPlanning] = useState(false);
@@ -52,7 +52,6 @@ const RoutePlanner = ({
     if (state.filterProvider !== 'All') n++;
     if (state.filterFavorites) n++;
     if (state.filterAvailable) n++;
-    if (state.filterInRange) n++;
     if (state.minDistance) n++;
     if (state.maxDistance) n++;
     if (state.minPowerKW > 0) n++;
@@ -62,7 +61,7 @@ const RoutePlanner = ({
 
   const clearFilters = () => update({
     filterProvider: 'All', filterFavorites: false, filterAvailable: false,
-    filterInRange: false, minDistance: '', maxDistance: '',
+    minDistance: '', maxDistance: '',
     minPowerKW: 0, excludedProviders: []
   });
 
@@ -83,10 +82,6 @@ const RoutePlanner = ({
     if (state.filterProvider !== 'All') result = result.filter(s => s.provider === state.filterProvider);
     if (state.filterFavorites) result = result.filter(s => favorites.stations.some(f => (typeof f === 'string' ? f === s.id : f.id === s.id)) || favorites.providers.includes(s.provider));
     if (state.filterAvailable) result = result.filter(s => s.availableSpots > 0);
-    if (state.filterInRange && prefs.currentRangeKm > 0) {
-      const reachable = prefs.currentRangeKm / 1.3;
-      result = result.filter(s => s.distanceFromStart <= reachable);
-    }
 
     const effectiveMinPower = Math.max(prefs.minPowerKW || 0, state.minPowerKW || 0);
     if (effectiveMinPower > 0) result = result.filter(s => (s.powerKW || 0) >= effectiveMinPower);
@@ -272,11 +267,27 @@ const RoutePlanner = ({
               </select>
             </div>
             {prefs.activeVehicleId && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <Battery size={14} color="var(--accent-primary)" />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Start-Ladung:</span>
-                <input type="range" min={5} max={100} step={5} value={state.startSoC ?? 80} onChange={(e) => update({ startSoC: parseInt(e.target.value) })} style={{ flex: 1, accentColor: 'var(--accent-primary)' }} />
-                <strong style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', minWidth: 36, textAlign: 'right' }}>{state.startSoC ?? 80}%</strong>
+                <input
+                  type="range" min={1} max={100} step={1}
+                  value={state.startSoC ?? 80}
+                  onChange={(e) => update({ startSoC: parseInt(e.target.value) })}
+                  style={{ flex: 1, accentColor: 'var(--accent-primary)', minWidth: 100 }}
+                />
+                <input
+                  type="number" min={1} max={100} step={1}
+                  value={state.startSoC ?? 80}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    if (isNaN(v)) return;
+                    update({ startSoC: Math.max(1, Math.min(100, v)) });
+                  }}
+                  className="input-field"
+                  style={{ width: 64, padding: '0.3rem 0.4rem', fontSize: '0.85rem', textAlign: 'center' }}
+                />
+                <span style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 600 }}>%</span>
               </div>
             )}
           </div>
@@ -516,12 +527,6 @@ const RoutePlanner = ({
                 <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
                 Nur Favoriten
               </label>
-              {prefs.currentRangeKm > 0 && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--accent-success)' }} title={`Filtert auf ~${Math.round(prefs.currentRangeKm/1.3)} km Luftlinie ab Start`}>
-                  <input type="checkbox" checked={!!state.filterInRange} onChange={(e) => update({ filterInRange: e.target.checked })} style={{ accentColor: 'var(--accent-success)', width: 16, height: 16 }} />
-                  <BatteryCharging size={14} /> In Reichweite ({prefs.currentRangeKm} km)
-                </label>
-              )}
             </div>
           </div>
 
@@ -574,6 +579,7 @@ const RoutePlanner = ({
               userLocation={null}
               onStationSelect={(station) => setSelectedStation(station)}
               mapStyle={mapStyle}
+              navApp={navApp}
             />
           )}
         </div>
@@ -588,6 +594,7 @@ const RoutePlanner = ({
           toggleFavorite={() => toggleFavorite(selectedStation)}
           toggleProviderFavorite={() => toggleProviderFavorite(selectedStation.provider)}
           apiKey={apiKey}
+          navApp={navApp}
           onRefreshed={(fresh) => {
             setData(prev => ({ ...prev, stations: prev.stations.map(s => s.id === fresh.id ? { ...s, ...fresh } : s) }));
             setSelectedStation(prev => prev ? { ...prev, ...fresh } : prev);

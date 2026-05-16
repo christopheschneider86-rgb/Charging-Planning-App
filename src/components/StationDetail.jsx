@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Heart, Zap, MapPin, Euro, X, Copy, Check, Info, ExternalLink, RefreshCw, Plug, Activity, CalendarClock, Navigation } from 'lucide-react';
 import { fetchStationById } from '../services/api';
+import { buildNavUrl, NAV_APPS, navAppLabel } from '../services/nav';
 
-const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggleFavorite, toggleProviderFavorite, apiKey, onRefreshed }) => {
+const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggleFavorite, toggleProviderFavorite, apiKey, onRefreshed, navApp = 'google' }) => {
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState(null);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(station.address);
@@ -28,9 +30,7 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
     }
   };
 
-  const navUrl = station.lat && station.lng
-    ? `https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`
-    : null;
+  const navUrl = station.lat && station.lng ? buildNavUrl(navApp, station.lat, station.lng) : null;
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 10000 }} onClick={onClose}>
@@ -138,9 +138,44 @@ const StationDetail = ({ station, onClose, isFavorite, isProviderFavorite, toggl
                 {copied ? <Check size={20} /> : <Copy size={20} />}
               </button>
               {navUrl && (
-                <a className="btn-primary" href={navUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '0.75rem', textDecoration: 'none' }} title="Navigation starten">
-                  <Navigation size={20} />
-                </a>
+                <div style={{ position: 'relative' }}>
+                  <a
+                    className="btn-primary"
+                    href={navUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ padding: '0.75rem 1rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    title={`Navigation mit ${navAppLabel(navApp)}`}
+                  >
+                    <Navigation size={18} />
+                    <span style={{ fontSize: '0.8rem' }}>{navAppLabel(navApp).split(' ')[0]}</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setNavMenuOpen(o => !o)}
+                    className="btn-secondary"
+                    style={{ marginTop: '0.4rem', width: '100%', padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}
+                    title="Andere Navi-App nutzen"
+                  >
+                    Andere…
+                  </button>
+                  {navMenuOpen && (
+                    <div className="glass-panel" style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 30, padding: '0.25rem', minWidth: 130, display: 'flex', flexDirection: 'column', gap: '0.15rem', backgroundColor: 'var(--bg-tertiary)' }}>
+                      {NAV_APPS.filter(a => a.id !== navApp).map(a => (
+                        <a
+                          key={a.id}
+                          href={buildNavUrl(a.id, station.lat, station.lng)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setNavMenuOpen(false)}
+                          style={{ padding: '0.4rem 0.6rem', borderRadius: 6, fontSize: '0.8rem', color: 'var(--text-primary)', textDecoration: 'none' }}
+                        >
+                          {a.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

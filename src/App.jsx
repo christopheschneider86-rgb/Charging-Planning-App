@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery } from 'lucide-react';
+import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery, Navigation as NavIcon, Shield } from 'lucide-react';
+import { NAV_APPS } from './services/nav';
 import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
 import FavoritesView from './components/FavoritesView';
@@ -49,7 +50,7 @@ function App() {
   const [preferredConnectors, setPreferredConnectors] = usePersisted('chargeflow_connectors', []);
   const [onlyOperational, setOnlyOperational] = usePersisted('chargeflow_only_operational', true);
   const [autoLocate, setAutoLocate] = usePersisted('chargeflow_auto_locate', false);
-  const [currentRangeKm, setCurrentRangeKm] = usePersisted('chargeflow_range', 0); // 0 = aus
+  const [navApp, setNavApp] = usePersisted('chargeflow_nav_app', 'google');
 
   // Saved places (Home, Work, custom)
   const [savedPlaces, setSavedPlaces] = usePersisted('chargeflow_places', []);
@@ -66,6 +67,17 @@ function App() {
   const [vehicles, setVehicles] = usePersisted('chargeflow_vehicles', []);
   const [activeVehicleId, setActiveVehicleId] = usePersisted('chargeflow_active_vehicle', null);
   const [safetyKm, setSafetyKm] = usePersisted('chargeflow_safety_km', 20);
+
+  // Auto-pick first vehicle as active if none selected yet
+  useEffect(() => {
+    if (vehicles.length > 0 && !activeVehicleId) {
+      setActiveVehicleId(vehicles[0].id);
+    }
+    // Clear active id if it points to a vehicle that no longer exists
+    if (activeVehicleId && !vehicles.find(v => v.id === activeVehicleId)) {
+      setActiveVehicleId(vehicles.length > 0 ? vehicles[0].id : null);
+    }
+  }, [vehicles, activeVehicleId]);
 
   // Saved routes
   const [savedRoutes, setSavedRoutes] = usePersisted('chargeflow_routes', []);
@@ -160,6 +172,8 @@ function App() {
   // New-place draft fields (used inside settings)
   const [newPlaceName, setNewPlaceName] = useState('');
   const [newPlaceAddr, setNewPlaceAddr] = useState('');
+  const [homeDraft, setHomeDraft] = useState('');
+  const [workDraft, setWorkDraft] = useState('');
 
   const saveHomeOrWork = (kind, picked) => {
     upsertPlace({
@@ -211,8 +225,9 @@ function App() {
       'chargeflow_favorites', 'chargeflow_nearme', 'chargeflow_route',
       'chargeflow_radius', 'chargeflow_minpower', 'chargeflow_connectors',
       'chargeflow_only_operational', 'chargeflow_auto_locate', 'chargeflow_tab',
-      'chargeflow_range', 'chargeflow_places', 'chargeflow_vehicles',
-      'chargeflow_active_vehicle', 'chargeflow_safety_km', 'chargeflow_routes'
+      'chargeflow_places', 'chargeflow_vehicles',
+      'chargeflow_active_vehicle', 'chargeflow_safety_km', 'chargeflow_routes',
+      'chargeflow_nav_app'
     ].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   };
@@ -222,7 +237,7 @@ function App() {
     preferredConnectors,
     onlyOperational,
     defaultRadius,
-    currentRangeKm,
+    navApp,
     savedPlaces,
     vehicles,
     activeVehicleId,
@@ -235,14 +250,17 @@ function App() {
 
       {/* Settings Modal */}
       {showSettings && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 0 }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', maxHeight: 'calc(100vh - env(safe-area-inset-top, 0px))', overflowY: 'auto', padding: '1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))', position: 'relative', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: 'var(--bg-secondary)' }}>
-            <button className="btn-icon" onClick={() => setShowSettings(false)} style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
-              <X size={20} />
-            </button>
-            <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Settings size={24} color="var(--accent-primary)" /> Einstellungen
-            </h2>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 0 }} onClick={() => setShowSettings(false)}>
+          <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px', maxHeight: 'calc(100vh - env(safe-area-inset-top, 0px))', overflowY: 'auto', padding: 0, position: 'relative', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: 'var(--bg-secondary)' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem' }}>
+                <Settings size={22} color="var(--accent-primary)" /> Einstellungen
+              </h2>
+              <button className="btn-icon" onClick={() => setShowSettings(false)} aria-label="Schließen">
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '1.25rem 1.5rem', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
@@ -260,6 +278,17 @@ function App() {
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button className={theme === 'dark' ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem' }} onClick={() => setTheme('dark')}>Dunkel</button>
                   <button className={theme === 'light' ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem' }} onClick={() => setTheme('light')}>Hell</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <NavIcon size={14} /> Bevorzugte Navi-App
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {NAV_APPS.map(opt => (
+                    <button key={opt.id} className={navApp === opt.id ? 'btn-primary' : 'btn-secondary'} style={{ flex: 1, padding: '0.5rem', fontSize: '0.85rem' }} onClick={() => setNavApp(opt.id)}>{opt.label}</button>
+                  ))}
                 </div>
               </div>
 
@@ -285,14 +314,6 @@ function App() {
               <div>
                 <label className="input-label">Mindestleistung: <strong>{minPowerKW === 0 ? 'beliebig' : `${minPowerKW} kW`}</strong></label>
                 <input type="range" min={0} max={350} step={11} value={minPowerKW} onChange={(e) => setMinPowerKW(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
-              </div>
-
-              <div>
-                <label className="input-label">Aktuelle Reichweite: <strong>{currentRangeKm === 0 ? 'aus' : `${currentRangeKm} km`}</strong></label>
-                <input type="range" min={0} max={600} step={10} value={currentRangeKm} onChange={(e) => setCurrentRangeKm(parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
-                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                  Aktiviert den Filter „Nur in Reichweite". Berechnung: Luftlinie × 1.3 als Fahrt-Reserve.
-                </p>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
@@ -429,9 +450,9 @@ function App() {
                     </div>
                   ) : (
                     <AddressAutocomplete
-                      value=""
-                      onChange={() => {}}
-                      onSelect={(p) => saveHomeOrWork('home', p)}
+                      value={homeDraft}
+                      onChange={setHomeDraft}
+                      onSelect={(p) => { saveHomeOrWork('home', p); setHomeDraft(''); }}
                       placeholder="Adresse für Zuhause…"
                     />
                   )}
@@ -449,9 +470,9 @@ function App() {
                     </div>
                   ) : (
                     <AddressAutocomplete
-                      value=""
-                      onChange={() => {}}
-                      onSelect={(p) => saveHomeOrWork('work', p)}
+                      value={workDraft}
+                      onChange={setWorkDraft}
+                      onSelect={(p) => { saveHomeOrWork('work', p); setWorkDraft(''); }}
                       placeholder="Adresse für Arbeit…"
                     />
                   )}
@@ -513,6 +534,7 @@ function App() {
                 Info, Datenquellen & Datenschutz
               </button>
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -534,9 +556,14 @@ function App() {
             </div>
           </div>
         </div>
-        <button className="btn-icon" onClick={() => { setApiKeyInput(ocmApiKey); setShowSettings(true); }}>
-          <Settings size={20} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <button className="btn-icon" onClick={() => setShowTerms(true)} title="Info & Datenschutz" aria-label="Info & Datenschutz">
+            <Shield size={20} />
+          </button>
+          <button className="btn-icon" onClick={() => { setApiKeyInput(ocmApiKey); setShowSettings(true); }} title="Einstellungen" aria-label="Einstellungen">
+            <Settings size={20} />
+          </button>
+        </div>
       </header>
 
       {/* Top Navigation */}
@@ -565,6 +592,7 @@ function App() {
             toggleProviderFavorite={toggleProviderFavorite}
             onOpenSettings={() => { setApiKeyInput(ocmApiKey); setShowSettings(true); }}
             mapStyle={mapStyle}
+            navApp={navApp}
             prefs={prefs}
             state={nearMe}
             setState={setNearMe}
@@ -587,6 +615,7 @@ function App() {
             toggleProviderFavorite={toggleProviderFavorite}
             onOpenSettings={() => { setApiKeyInput(ocmApiKey); setShowSettings(true); }}
             mapStyle={mapStyle}
+            navApp={navApp}
             prefs={prefs}
             state={routeState}
             setState={setRouteState}
@@ -605,6 +634,7 @@ function App() {
             toggleFavorite={toggleStationFavorite}
             toggleProviderFavorite={toggleProviderFavorite}
             mapStyle={mapStyle}
+            navApp={navApp}
           />
         </div>
       </main>

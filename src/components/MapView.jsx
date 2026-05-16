@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-
 import L from 'leaflet';
 import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { buildNavUrl, navAppLabel } from '../services/nav';
 
 const MapCenter = ({ center }) => {
   const map = useMap();
@@ -52,7 +53,7 @@ const createUserIcon = () => {
   return L.divIcon({ html: iconMarkup, className: 'custom-user-icon', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
 };
 
-const MapView = ({ stations, favorites, onStationSelect, center, userLocation, routeLine, mapStyle = 'standard' }) => {
+const MapView = ({ stations, favorites, onStationSelect, center, userLocation, routeLine, mapStyle = 'standard', navApp = 'google' }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const defaultCenter = [51.1657, 10.4515];
   const mapCenter = center || (stations.length > 0 ? [stations[0].lat, stations[0].lng] : defaultCenter);
@@ -86,7 +87,7 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
 
         {stations.map(station => {
           const isFav = favorites.stations.some(f => (typeof f === 'string' ? f === station.id : f.id === station.id)) || favorites.providers.includes(station.provider);
-          const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`;
+          const navUrl = buildNavUrl(navApp, station.lat, station.lng);
           return (
             <Marker
               key={station.id}
@@ -117,8 +118,9 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ background: '#3a7bd5', color: 'white', textDecoration: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                    title={`Mit ${navAppLabel(navApp)} navigieren`}
                   >
-                    <NavIcon size={10} /> Navi
+                    <NavIcon size={10} /> {navAppLabel(navApp).split(' ')[0]}
                   </a>
                   {station.providerUrl && (
                     <a

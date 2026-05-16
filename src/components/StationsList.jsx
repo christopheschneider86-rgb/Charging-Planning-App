@@ -9,7 +9,7 @@ import { fetchStations, geocodeAddress } from '../services/api';
 
 const StationsList = ({
   apiKey, favorites, toggleFavorite, toggleProviderFavorite, onOpenSettings,
-  mapStyle, prefs, state, setState, stations, setStations,
+  mapStyle, navApp, prefs, state, setState, stations, setStations,
   userLocation, setUserLocation, autoLocate, sendToRoute
 }) => {
   const [selectedStation, setSelectedStation] = useState(null);
@@ -24,7 +24,6 @@ const StationsList = ({
     if (state.filterProvider !== 'All') n++;
     if (state.filterFavorites) n++;
     if (state.filterAvailable) n++;
-    if (state.filterInRange) n++;
     if (state.minDistance) n++;
     if (state.maxDistance) n++;
     if (state.minPowerKW > 0) n++;
@@ -34,7 +33,7 @@ const StationsList = ({
 
   const clearFilters = () => update({
     filterProvider: 'All', filterFavorites: false, filterAvailable: false,
-    filterInRange: false, minDistance: '', maxDistance: '',
+    minDistance: '', maxDistance: '',
     minPowerKW: 0, excludedProviders: []
   });
 
@@ -113,10 +112,6 @@ const StationsList = ({
     if (state.filterProvider !== 'All') result = result.filter(s => s.provider === state.filterProvider);
     if (state.filterFavorites) result = result.filter(s => favorites.stations.some(f => (typeof f === 'string' ? f === s.id : f.id === s.id)) || favorites.providers.includes(s.provider));
     if (state.filterAvailable) result = result.filter(s => s.availableSpots > 0);
-    if (state.filterInRange && prefs.currentRangeKm > 0) {
-      const reachable = prefs.currentRangeKm / 1.3;
-      result = result.filter(s => parseFloat(s.distance) <= reachable);
-    }
 
     const effectiveMinPower = Math.max(prefs.minPowerKW || 0, state.minPowerKW || 0);
     if (effectiveMinPower > 0) result = result.filter(s => (s.powerKW || 0) >= effectiveMinPower);
@@ -280,12 +275,6 @@ const StationsList = ({
             <input type="checkbox" checked={state.filterFavorites} onChange={(e) => update({ filterFavorites: e.target.checked })} style={{ accentColor: 'var(--accent-danger)', width: 16, height: 16 }} />
             Nur Favoriten
           </label>
-          {prefs.currentRangeKm > 0 && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--accent-success)' }} title={`Filtert auf ~${Math.round(prefs.currentRangeKm/1.3)} km Luftlinie`}>
-              <input type="checkbox" checked={!!state.filterInRange} onChange={(e) => update({ filterInRange: e.target.checked })} style={{ accentColor: 'var(--accent-success)', width: 16, height: 16 }} />
-              <BatteryCharging size={14} /> In Reichweite ({prefs.currentRangeKm} km)
-            </label>
-          )}
         </div>
       </div>
 
@@ -356,6 +345,7 @@ const StationsList = ({
               userLocation={userLocation}
               onStationSelect={(station) => setSelectedStation(station)}
               mapStyle={mapStyle}
+              navApp={navApp}
             />
           )}
         </div>
@@ -370,6 +360,7 @@ const StationsList = ({
           toggleFavorite={() => toggleFavorite(selectedStation)}
           toggleProviderFavorite={() => toggleProviderFavorite(selectedStation.provider)}
           apiKey={apiKey}
+          navApp={navApp}
           onRefreshed={(fresh) => {
             setStations(prev => prev.map(s => s.id === fresh.id ? { ...s, ...fresh } : s));
             setSelectedStation(prev => prev ? { ...prev, ...fresh } : prev);

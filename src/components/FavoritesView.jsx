@@ -5,7 +5,7 @@ import StationDetail from './StationDetail';
 import MapView from './MapView';
 import { fetchStationById } from '../services/api';
 
-const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorite, mapStyle }) => {
+const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorite, mapStyle, navApp }) => {
   const [viewMode, setViewMode] = useState('list');
   const [selectedStation, setSelectedStation] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -146,6 +146,7 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
           center={center}
           onStationSelect={(s) => setSelectedStation(s)}
           mapStyle={mapStyle}
+          navApp={navApp}
         />
       )}
 
@@ -158,6 +159,7 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
           toggleFavorite={() => toggleFavorite(selectedStation)}
           toggleProviderFavorite={() => toggleProviderFavorite(selectedStation.provider)}
           apiKey={apiKey}
+          navApp={navApp}
           onRefreshed={(fresh) => {
             setSyncedStations(prev => ({ ...prev, [fresh.id]: fresh }));
             setSelectedStation(prev => prev ? { ...prev, ...fresh } : prev);

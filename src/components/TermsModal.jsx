@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Shield, Database, AlertTriangle, ExternalLink, Heart } from 'lucide-react';
+import { X, Shield, Database, AlertTriangle, ExternalLink, Heart, FileText } from 'lucide-react';
 
 const Section = ({ icon, title, children }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -82,22 +82,54 @@ const TermsModal = ({ onClose }) => {
             </p>
           </Section>
 
-          <Section icon={<AlertTriangle size={16} color="var(--accent-warning)" />} title="Hinweise & Haftung">
+          <Section icon={<AlertTriangle size={16} color="var(--accent-warning)" />} title="Haftungsausschluss">
             <p style={{ margin: 0 }}>
-              Verfügbarkeit, Preise und Status der Ladesäulen sind nicht
-              garantiert. OpenChargeMap-Daten werden von der Community gepflegt
-              und können veraltet sein. SoC-Berechnung ist eine Schätzung
-              basierend auf deinen Fahrzeugdaten — Wetter, Topografie, Fahrstil
-              werden nicht berücksichtigt.
+              ChargeFlow wird „wie besehen" bereitgestellt, ohne Gewährleistung
+              jeglicher Art. Verfügbarkeit, Preise, Status und Lage der
+              Ladesäulen sind nicht garantiert. OpenChargeMap-Daten werden von
+              der Community gepflegt und können veraltet, unvollständig oder
+              fehlerhaft sein.
             </p>
             <p style={{ margin: '0.5rem 0 0 0' }}>
-              Plane immer mit Reserve und prüfe vor Ort.
+              Die SoC- und Reichweitenberechnung ist eine Schätzung basierend
+              auf den von dir hinterlegten Fahrzeugdaten. Wetter, Topografie,
+              Geschwindigkeit, Fahrstil, Beladung und Akkualter werden nicht
+              berücksichtigt. Plane immer mit Reserve und prüfe Ladesäulen vor
+              Ort.
+            </p>
+            <p style={{ margin: '0.5rem 0 0 0' }}>
+              Die Nutzung dieser App und das Befolgen ihrer Empfehlungen
+              erfolgen auf eigene Verantwortung. Der Autor haftet nicht für
+              Schäden, die durch unvollständige Daten, Fehlrouting, nicht
+              erreichte Ladesäulen oder ausbleibende Ladeoptionen entstehen.
             </p>
           </Section>
 
-          <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            ChargeFlow · keine kommerzielle App · Code & Issues auf{' '}
-            <a href="https://github.com/christopheschneider86-rgb/Charging-Planning-App" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>GitHub</a>
+          <Section icon={<FileText size={16} color="var(--accent-primary)" />} title="Impressum & Lizenz">
+            <p style={{ margin: 0 }}>
+              ChargeFlow ist ein nicht-kommerzielles Hobbyprojekt. Es gibt
+              keinen kommerziellen Anbieter, keine Gewinnerzielungsabsicht und
+              keinen Support-Anspruch.
+            </p>
+            <p style={{ margin: '0.5rem 0 0 0' }}>
+              Markennamen (Tesla, IONITY, EnBW, Google Maps, Apple Maps, Waze
+              usw.) sind Eigentum der jeweiligen Inhaber und werden nur
+              referenziell genannt. ChargeFlow steht in keiner Verbindung zu
+              diesen Unternehmen.
+            </p>
+            <p style={{ margin: '0.5rem 0 0 0' }}>
+              Bei Fragen oder Datenkorrekturen wende dich bitte direkt an
+              OpenChargeMap (für Ladesäulendaten) oder OpenStreetMap (für Karten
+              und Adressdaten).
+            </p>
+          </Section>
+
+          <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div>
+              Code & Issues:{' '}
+              <a href="https://github.com/christopheschneider86-rgb/Charging-Planning-App" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }}>GitHub <ExternalLink size={10} style={{ display: 'inline' }} /></a>
+            </div>
+            <div>Stand: {new Date().toLocaleDateString('de-DE')}</div>
           </div>
         </div>
       </div>
