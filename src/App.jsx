@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery, Navigation as NavIcon, Shield, Mail, Coffee } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import { NAV_APPS } from './services/nav';
 import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
@@ -695,6 +696,7 @@ function App() {
           />
         </div>
       </main>
+      <Analytics />
     </div>
   );
 }
