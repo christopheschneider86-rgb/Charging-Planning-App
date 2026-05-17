@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink, Crosshair, RefreshCw } from 'lucide-react';
@@ -71,6 +72,24 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
   const mapCenter = center || (stations.length > 0 ? [stations[0].lat, stations[0].lng] : defaultCenter);
   const layer = TILE_LAYERS[mapStyle] || TILE_LAYERS.standard;
 
+  // When fullscreen toggles, the map's container resized → tell leaflet about it.
+  // Also lock body scroll while fullscreen is on so the page behind doesn't move.
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+    // Invalidate on the next frame so the new size has been laid out
+    const t = setTimeout(() => {
+      if (mapRef.current) mapRef.current.invalidateSize();
+    }, 100);
+    return () => {
+      document.body.classList.remove('modal-open');
+      clearTimeout(t);
+    };
+  }, [isFullscreen]);
+
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
@@ -97,7 +116,6 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
     mapRef.current.eachLayer(layer => {
       if (layer.redraw) layer.redraw();
     });
-    // And — if the parent provided a data refetch — refetch stations in this area
     if (onSearchArea) {
       const b = mapRef.current.getBounds();
       const ne = b.getNorthEast();
@@ -108,18 +126,15 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
     }
   };
 
-  const containerStyle = isFullscreen
-    ? { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: 'var(--bg-primary)' }
-    : { height: 'min(65vh, 600px)', minHeight: '320px', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)', zIndex: 0, position: 'relative' };
-
   const handleOpenDetails = (station) => {
     // Close fullscreen first so the bottom-sheet is not covered.
     if (isFullscreen) setIsFullscreen(false);
     onStationSelect(station);
   };
 
-  return (
-    <div style={containerStyle}>
+  // ---- Shared map content (rendered in both inline & fullscreen containers) ----
+  const mapContent = (
+    <>
       <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
         <MapHandle onReady={(m) => { mapRef.current = m; }} />
         <TileLayer key={mapStyle} attribution={layer.attribution} url={layer.url} />
@@ -218,7 +233,53 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
           <RefreshCw size={20} className={isLoading ? 'spin' : ''} />
         </button>
       </div>
+    </>
+  );
 
+  const inlineStyle = {
+    height: 'min(65vh, 600px)', minHeight: '320px', width: '100%',
+    borderRadius: '16px', overflow: 'hidden',
+    border: '1px solid var(--border-color)',
+    zIndex: 0, position: 'relative'
+  };
+
+  const fullscreenStyle = {
+    position: 'fixed', top: 0, left: 0,
+    width: '100vw', height: '100dvh',
+    zIndex: 9999, backgroundColor: 'var(--bg-primary)'
+  };
+
+  // Inline placeholder when fullscreen is active — keeps the surrounding layout stable.
+  if (isFullscreen) {
+    return (
+      <>
+        <div style={{ ...inlineStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          Karte ist im Vollbild …
+        </div>
+        {createPortal(
+          <div style={fullscreenStyle}>{mapContent}</div>,
+          document.body
+        )}
+        <style>{`
+          .leaflet-container { font-family: var(--font-main); }
+          .custom-leaflet-icon, .custom-user-icon { background: transparent; border: none; }
+          .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+          .leaflet-popup-content { margin: 10px 12px; min-width: 200px; }
+          @keyframes spin { to { transform: rotate(360deg); } }
+          .spin { animation: spin 1s linear infinite; }
+          @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            70% { transform: scale(2.5); opacity: 0; }
+            100% { transform: scale(2.5); opacity: 0; }
+          }
+        `}</style>
+      </>
+    );
+  }
+
+  return (
+    <div style={inlineStyle}>
+      {mapContent}
       <style>{`
         .leaflet-container { font-family: var(--font-main); }
         .custom-leaflet-icon, .custom-user-icon { background: transparent; border: none; }
