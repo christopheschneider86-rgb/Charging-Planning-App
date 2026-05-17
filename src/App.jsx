@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery, Navigation as NavIcon, Shield, Mail } from 'lucide-react';
+import { Compass, Settings, Check, X, MapPin, Heart, Plug, RotateCcw, Home, Briefcase, Trash2, Plus, Car, Battery, Navigation as NavIcon, Shield, Mail, Coffee } from 'lucide-react';
 import { NAV_APPS } from './services/nav';
 import StationsList from './components/StationsList';
 import RoutePlanner from './components/RoutePlanner';
@@ -98,7 +98,14 @@ function App() {
   };
 
   // Favorites
-  const [favorites, setFavorites] = usePersisted('chargeflow_favorites', { stations: [], providers: [] });
+  const [favorites, setFavorites] = usePersisted('chargeflow_favorites', { stations: [], providers: [], hiddenProviders: [] });
+
+  // Migration: ensure hiddenProviders field exists
+  useEffect(() => {
+    if (favorites && !Array.isArray(favorites.hiddenProviders)) {
+      setFavorites(prev => ({ ...prev, hiddenProviders: [] }));
+    }
+  }, [favorites]);
 
   // ---- Lifted state for tabs (so switching keeps the form filled) ----
   // StationsList ("Meine Nähe")
@@ -159,6 +166,14 @@ function App() {
       ? { ...prev, providers: prev.providers.filter(p => p !== provider) }
       : { ...prev, providers: [...prev.providers, provider] }
     );
+  };
+
+  const toggleProviderVisibility = (provider) => {
+    setFavorites(prev => {
+      const hidden = prev.hiddenProviders || [];
+      const isHidden = hidden.includes(provider);
+      return { ...prev, hiddenProviders: isHidden ? hidden.filter(p => p !== provider) : [...hidden, provider] };
+    });
   };
 
   const toggleConnector = (type) => {
@@ -590,6 +605,20 @@ function App() {
           <button className="btn-icon" onClick={() => { setApiKeyInput(ocmApiKey); setShowSettings(true); }} title="Einstellungen" aria-label="Einstellungen">
             <Settings size={20} />
           </button>
+
+          {/* Konto area — placeholder for future Login. For now: Ko-Fi support button. */}
+          <div style={{ width: 1, height: 24, background: 'var(--border-color)', margin: '0 0.4rem' }} />
+          <a
+            href="https://ko-fi.com/christopheschneider"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-icon"
+            title="ChargeFlow unterstützen (Ko-Fi)"
+            aria-label="Support via Ko-Fi"
+            style={{ background: '#d9534f', color: 'white' }}
+          >
+            <Coffee size={18} />
+          </a>
         </div>
       </header>
 
@@ -660,6 +689,7 @@ function App() {
             favorites={favorites}
             toggleFavorite={toggleStationFavorite}
             toggleProviderFavorite={toggleProviderFavorite}
+            toggleProviderVisibility={toggleProviderVisibility}
             mapStyle={mapStyle}
             navApp={navApp}
           />

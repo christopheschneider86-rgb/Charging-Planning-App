@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
-import { Heart, List, Map, RefreshCw, Trash2, AlertCircle, Search, MapPin, Building2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Heart, List, Map, RefreshCw, Trash2, AlertCircle, Search, MapPin, Building2, Eye, EyeOff } from 'lucide-react';
 import StationCard from './StationCard';
 import StationDetail from './StationDetail';
 import MapView from './MapView';
 import { fetchStationById, fetchStations } from '../services/api';
 
-const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorite, mapStyle, navApp }) => {
+const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavorite, toggleProviderVisibility, mapStyle, navApp }) => {
+  const hiddenProviders = favorites.hiddenProviders || [];
+  const visibleProviderNames = (favorites.providers || []).filter(p => !hiddenProviders.includes(p));
   const [subTab, setSubTab] = useState('stations'); // 'stations' | 'providers'
   const [viewMode, setViewMode] = useState('list');
   const [selectedStation, setSelectedStation] = useState(null);
@@ -73,15 +75,18 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
     }
   };
 
-  // Bbox search filtered to favored providers — used in providers sub-tab
+  // Bbox search filtered to *visible* favored providers — used in providers sub-tab
   const loadProviderArea = async (lat, lng, radiusKm) => {
     if (!apiKey) { setAreaError('NO_API_KEY'); return; }
-    if (favorites.providers.length === 0) { setAreaError('NO_PROVIDERS'); return; }
+    if (visibleProviderNames.length === 0) {
+      setAreaError(favorites.providers.length === 0 ? 'NO_PROVIDERS' : 'ALL_HIDDEN');
+      return;
+    }
     setIsLoadingArea(true);
     setAreaError(null);
     try {
       const data = await fetchStations(lat, lng, apiKey, radiusKm);
-      const lowered = favorites.providers.map(p => p.toLowerCase());
+      const lowered = visibleProviderNames.map(p => p.toLowerCase());
       const filtered = data.filter(s => lowered.includes((s.provider || '').toLowerCase()));
       setProviderStations(filtered);
       setAreaCenter([lat, lng]);
@@ -91,6 +96,13 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
       setIsLoadingArea(false);
     }
   };
+
+  // For the list display of map results, filter again so an existing fetch
+  // updates instantly when the user toggles visibility (no re-fetch needed).
+  const visibleProviderStations = useMemo(() => {
+    const lowered = visibleProviderNames.map(p => p.toLowerCase());
+    return providerStations.filter(s => lowered.includes((s.provider || '').toLowerCase()));
+  }, [providerStations, visibleProviderNames]);
 
   // ----- RENDER -----
 
@@ -145,19 +157,47 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
         {/* Providers toolbar */}
         {subTab === 'providers' && favorites.providers.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Lieblings-Anbieter</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>
+              Lieblings-Anbieter ({visibleProviderNames.length}/{favorites.providers.length} sichtbar)
+            </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {favorites.providers.map(p => (
-                <span key={p} className="badge" style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--accent-danger)', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  {p}
-                  <button onClick={() => toggleProviderFavorite(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent-danger)' }} title="Anbieter entfernen">
-                    <Trash2 size={12} />
-                  </button>
-                </span>
-              ))}
+              {favorites.providers.map(p => {
+                const hidden = hiddenProviders.includes(p);
+                return (
+                  <span
+                    key={p}
+                    className="badge"
+                    style={{
+                      background: hidden ? 'rgba(160,165,177,0.12)' : 'rgba(239,68,68,0.12)',
+                      color: hidden ? 'var(--text-muted)' : 'var(--accent-danger)',
+                      textTransform: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      textDecoration: hidden ? 'line-through' : 'none'
+                    }}
+                  >
+                    <button
+                      onClick={() => toggleProviderVisibility && toggleProviderVisibility(p)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex' }}
+                      title={hidden ? 'Wieder anzeigen' : 'Ausblenden'}
+                    >
+                      {hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                    </button>
+                    {p}
+                    <button
+                      onClick={() => toggleProviderFavorite(p)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit' }}
+                      title="Anbieter entfernen"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </span>
+                );
+              })}
             </div>
             <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              In der Kartenansicht den Knopf <strong>„Diesen Ausschnitt laden"</strong> nutzen, um Säulen dieser Anbieter im aktuellen Kartenbereich zu finden.
+              Auf der Karte den Knopf <strong>„Diesen Ausschnitt laden"</strong> nutzen. Ausgeblendete Anbieter werden gefiltert.
             </p>
           </div>
         )}
@@ -173,7 +213,7 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
       {areaError && (
         <div className="glass-panel" style={{ padding: '0.75rem 1rem', border: '1px solid var(--accent-danger)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-danger)' }}>
           <AlertCircle size={16} />
-          {areaError === 'NO_API_KEY' ? 'Kein API-Key.' : areaError === 'NO_PROVIDERS' ? 'Keine Lieblings-Anbieter gespeichert.' : areaError === 'INVALID_API_KEY' ? 'API-Key ungültig.' : 'Fehler beim Laden.'}
+          {areaError === 'NO_API_KEY' ? 'Kein API-Key.' : areaError === 'NO_PROVIDERS' ? 'Keine Lieblings-Anbieter gespeichert.' : areaError === 'ALL_HIDDEN' ? 'Alle Anbieter sind ausgeblendet.' : areaError === 'INVALID_API_KEY' ? 'API-Key ungültig.' : 'Fehler beim Laden.'}
         </div>
       )}
 
@@ -223,22 +263,36 @@ const FavoritesView = ({ apiKey, favorites, toggleFavorite, toggleProviderFavori
           </div>
         ) : viewMode === 'list' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingBottom: '2rem' }}>
-            {favorites.providers.map(p => (
-              <div key={p} className="glass-panel" style={{ padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Building2 size={16} color="var(--accent-danger)" />
-                  <span style={{ fontWeight: 600 }}>{p}</span>
+            {favorites.providers.map(p => {
+              const hidden = hiddenProviders.includes(p);
+              return (
+                <div key={p} className="glass-panel" style={{ padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: hidden ? 0.55 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Building2 size={16} color={hidden ? 'var(--text-muted)' : 'var(--accent-danger)'} />
+                    <span style={{ fontWeight: 600, textDecoration: hidden ? 'line-through' : 'none' }}>{p}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <button
+                      onClick={() => toggleProviderVisibility && toggleProviderVisibility(p)}
+                      className="btn-icon"
+                      title={hidden ? 'Wieder anzeigen' : 'Auf der Karte ausblenden'}
+                    >
+                      {hidden ? <EyeOff size={16} color="var(--text-muted)" /> : <Eye size={16} color="var(--text-primary)" />}
+                    </button>
+                    <button onClick={() => toggleProviderFavorite(p)} className="btn-icon" title="Anbieter entfernen">
+                      <Trash2 size={16} color="var(--accent-danger)" />
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => toggleProviderFavorite(p)} className="btn-icon" title="Anbieter entfernen"><Trash2 size={16} color="var(--accent-danger)" /></button>
-              </div>
-            ))}
+              );
+            })}
             <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              Wechsle auf die Kartenansicht, um Säulen deiner Anbieter im aktuellen Ausschnitt zu sehen.
+              Wechsle auf die Kartenansicht, um Säulen deiner Anbieter im aktuellen Ausschnitt zu sehen. Ausgeblendete Anbieter werden gefiltert.
             </p>
           </div>
         ) : (
           <MapView
-            stations={providerStations}
+            stations={visibleProviderStations}
             favorites={favorites}
             center={center}
             onStationSelect={(s) => setSelectedStation(s)}

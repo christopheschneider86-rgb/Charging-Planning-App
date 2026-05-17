@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink, Crosshair, RefreshCw } from 'lucide-react';
+import { Zap, MapPin, Maximize, Minimize, Info, Navigation as NavIcon, ExternalLink, Crosshair, RefreshCw, Scaling } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { buildNavUrl, navAppLabel } from '../services/nav';
 
@@ -104,6 +104,17 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 8000 }
     );
+  };
+
+  const handleFitToRoute = () => {
+    if (!mapRef.current) return;
+    if (routeLine && routeLine.length > 1) {
+      const bounds = L.latLngBounds(routeLine);
+      mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+    } else if (stations.length > 0) {
+      const bounds = L.latLngBounds(stations.map(s => [s.lat, s.lng]));
+      mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+    }
   };
 
   const handleReload = () => {
@@ -214,6 +225,16 @@ const MapView = ({ stations, favorites, onStationSelect, center, userLocation, r
         >
           {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
         </button>
+        {(routeLine && routeLine.length > 1) || stations.length > 1 ? (
+          <button
+            onClick={handleFitToRoute}
+            className="btn-icon"
+            title={routeLine ? 'Gesamte Route zeigen' : 'Alle Stationen zeigen'}
+            style={{ backgroundColor: 'var(--bg-secondary)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', color: 'var(--text-primary)' }}
+          >
+            <Scaling size={20} />
+          </button>
+        ) : null}
         <button
           onClick={handleLocateMe}
           className="btn-icon"
